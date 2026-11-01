@@ -10,7 +10,19 @@
                              (file-name-directory load-file-name)))
 (require 'ert)
 
-(ert-deftest rb-real-emacs-launch-and-pause ()
+(defun rb-test--server-state ()
+  (let* ((url-proxy-services nil)
+         (json-object-type 'alist)
+         (buffer (url-retrieve-synchronously
+                  (concat rb-visualizer--url "state") t t 2)))
+    (unless buffer (error "Companion state endpoint did not respond"))
+    (unwind-protect
+        (with-current-buffer buffer
+          (goto-char url-http-end-of-headers)
+          (json-read))
+      (kill-buffer buffer))))
+
+(defun rb-test--launch-and-pause ()
   (let* ((default-directory rb-visualizer-directory)
          (dap-breakpoints-file (make-temp-file "rb-breakpoints-"))
          (dap--breakpoints (make-hash-table :test 'equal))
@@ -42,9 +54,22 @@
             (should ended)
             (should paused)
             (should (seq-some (lambda (node) (member "rotate_down" (append (alist-get 'names node) nil)))
-                             (append (alist-get 'nodes paused) nil))))
+                             (append (alist-get 'nodes paused) nil)))
+            (let ((state (rb-test--server-state)))
+              (should (equal (alist-get 'status state) "ended"))
+              (should (> (length (alist-get 'nodes state)) 0)))
+            (should (plist-get (dap--debug-session-launch-args rb-visualizer--session)
+                               :rb-visualizer))
+            (dap--debug-session-name rb-visualizer--session))
         (advice-remove 'rb-visualizer--publish publisher)
         (when (process-live-p rb-visualizer--server) (delete-process rb-visualizer--server))
         (delete-file dap-breakpoints-file)))))
+
+(ert-deftest rb-real-emacs-repeated-launch-and-pause ()
+  ;; dap-mode changes :name on subsequent launches. Both sessions must publish
+  ;; snapshots through HTTP, regardless of the generated display name.
+  (let ((first (rb-test--launch-and-pause))
+        (second (rb-test--launch-and-pause)))
+    (should-not (equal first second))))
 
 (ert-run-tests-batch-and-exit)

@@ -1,7 +1,9 @@
+import {layout} from './layout.js';
+
 const svg = document.querySelector('#canvas');
 const viewport = document.querySelector('#viewport');
 const ns = 'http://www.w3.org/2000/svg';
-let data = {nodes: [], edges: []}, revision = -1, positions = new Map();
+let data = {nodes: [], edges: []}, revision = -1;
 let transform = {x: 60, y: 85, k: 1};
 let bounds = {x: 0, y: 0, width: 400, height: 300};
 function el(tag, attrs = {}, text) {
@@ -11,85 +13,75 @@ function el(tag, attrs = {}, text) {
   return node;
 }
 function applyTransform() { viewport.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.k})`); }
-function layout(nodes, edges, root) {
-  const byId = new Map(nodes.map(n => [n.id, n]));
-  const adjacency = new Map(nodes.map(n => [n.id, []]));
-  edges.forEach(e => adjacency.get(e.source)?.push(e));
-  const result = new Map();
-  let offset = 0;
-  // Each identity gets a single position. A spanning forest lays out even cycles.
-  function component(start) {
-    const levels = [], stack = [[start, 0]];
-    while (stack.length) {
-      const [id, depth] = stack.pop();
-      if (!byId.has(id) || result.has(id)) continue;
-      result.set(id, null);
-      (levels[depth] ??= []).push(id);
-      const children = adjacency.get(id) ?? [];
-      for (let i = children.length - 1; i >= 0; i--) stack.push([children[i].target, depth + 1]);
+let renderGeneration = 0;
+let layoutError = '';
+async function render() {
+  const generation = ++renderGeneration;
+  const snapshot = data;
+  let geometry;
+  try {
+    geometry = await layout(snapshot.nodes ?? [], snapshot.edges ?? [], snapshot.root);
+  } catch (error) {
+    if (generation === renderGeneration) {
+      layoutError = `Unable to lay out pointer graph: ${error.message}`;
+      document.querySelector('#notice').textContent = layoutError;
     }
-    const width = Math.max(1, ...levels.map(l => l.length)) * 145;
-    levels.forEach((level, depth) => level.forEach((id, i) => result.set(id, {x: offset + (i + .5) * width / level.length, y: depth * 135})));
-    offset += width + 65;
+    return;
   }
-  if (root) component(root);
-  const detachedStart = offset;
-  const detached = nodes.filter(n => n.detached);
-  // Prefer detached roots so normal detached subtrees retain a natural shape.
-  const incoming = new Set(edges.filter(e => byId.get(e.source)?.detached).map(e => e.target));
-  [...detached.filter(n => !incoming.has(n.id)), ...nodes].forEach(n => { if (!result.has(n.id)) component(n.id); });
-  return {result, detachedStart};
-}
-function render() {
-  viewport.replaceChildren();
-  const {nodes = [], edges = [], root} = data;
-  const layoutResult = layout(nodes, edges, root);
-  positions = layoutResult.result;
-  if (root && positions.has(root)) viewport.append(el('text', {x: positions.get(root).x, y: -58, 'text-anchor': 'middle', class: 'group-label'}, 'ROOT'));
-  if (nodes.some(n => n.detached)) viewport.append(el('text', {x: layoutResult.detachedStart, y: -58, class: 'group-label'}, 'DETACHED · STILL LIVE'));
-  for (const edge of edges) {
-    const a = positions.get(edge.source), b = positions.get(edge.target);
-    if (!a || !b) continue;
-    const group = el('g');
-    let path;
-    if (a === b) path = `M ${a.x+20} ${a.y-20} C ${a.x+100} ${a.y-110}, ${a.x+100} ${a.y+110}, ${a.x+23} ${a.y+20}`;
-    else {
-      const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy) || 1;
-      const x1 = a.x + dx/length*33, y1 = a.y + dy/length*33;
-      const x2 = b.x - dx/length*37, y2 = b.y - dy/length*37;
-      const bend = edge.side === 'left' ? -12 : 12;
-      path = `M ${x1} ${y1} Q ${(x1+x2)/2 + bend} ${(y1+y2)/2} ${x2} ${y2}`;
+  // A newer pause or NIL toggle can overtake this asynchronous layout.
+  if (generation !== renderGeneration) return;
+  layoutError = '';
+  const showNil = document.querySelector('#nil').checked;
+  const content = document.createDocumentFragment();
+  for (const group of geometry.groups) {
+    const height = showNil ? group.height : Math.max(80, ...geometry.nodes.filter(node => node.group === group.id && !node.nil).map(node => node.y + node.height - group.y + 24));
+    if (group.id === 'detached') content.append(el('rect', {x: group.x, y: group.y, width: group.width, height, rx: 16, class: 'detached-region'}));
+    content.append(el('text', {x: group.x + 24, y: group.y + 26, class: 'group-label'}, group.id === 'attached' ? 'ROOTED TREE' : 'DETACHED · STILL LIVE'));
+  }
+  for (const edge of geometry.edges) {
+    if (edge.nil && !showNil) continue;
+    const record = edge.record;
+    for (const points of edge.sections) {
+      const path = points.map((point, i) => `${i ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+      const line = el('path', {d: path, class: `edge ${record?.warnings.length ? 'warning' : ''}`});
+      line.append(el('title', {}, record?.warnings.join('; ') || `${record?.side ?? 'NIL'} child`));
+      content.append(line);
     }
-    const line = el('path', {d: path, class: `edge ${edge.warnings.length ? 'warning' : ''}`});
-    line.append(el('title', {}, edge.warnings.join('; ') || `${edge.side} child`));
-    group.append(line, el('text', {x: (a.x+b.x)/2 + (edge.side === 'left' ? -14 : 14), y: (a.y+b.y)/2 - 5, class: 'edge-label'}, edge.side === 'left' ? 'L' : 'R'));
-    viewport.append(group);
+    for (const label of edge.labels) content.append(el('text', {x: label.x + label.width / 2, y: label.y + 11, class: 'edge-label', 'text-anchor': 'middle'}, label.text));
   }
-  for (const node of nodes) {
-    const p = positions.get(node.id);
-    const incident = edges.some(e => (e.source === node.id || e.target === node.id) && e.warnings.length);
-    const g = el('g', {transform: `translate(${p.x},${p.y})`, class: `node ${node.color} ${node.warnings.length || incident ? 'warning' : ''}`});
-    g.append(el('title', {}, `#${node.id} · ${node.address}\nparent: ${node.parent ? '#'+node.parent : 'None'}\n${node.warnings.join('\n')}`));
-    g.append(el('circle', {r: 32}), el('text', {class: 'key', y: -3}, node.key.length > 9 ? node.key.slice(0,8)+'…' : node.key), el('text', {class: 'color', y: 21}, node.color === 'unknown' ? '?' : node.color === 'red' ? 'R' : 'B'));
-    g.append(el('text', {class: 'names', y: -43}, node.names.join(', ')), el('text', {class: 'identity', y: 49}, `#${node.id}`));
-    viewport.append(g);
-    if (document.querySelector('#nil').checked) {
-      for (const [side, dx] of [['left', -45], ['right', 45]]) {
-        if (!node.nil_children?.includes(side)) continue;
-        viewport.append(el('path', {d: `M ${p.x+dx/2} ${p.y+25} L ${p.x+dx} ${p.y+75}`, class: 'edge'}));
-        const nil = el('g', {transform: `translate(${p.x+dx},${p.y+85})`, class: 'nil'});
-        nil.append(el('rect', {x: -16, y: -9, width: 32, height: 18, rx: 3}), el('text', {y: 3}, 'NIL'));
-        viewport.append(nil);
-      }
+  for (const node of geometry.nodes) {
+    if (node.nil) {
+      if (!showNil) continue;
+      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: 'nil'});
+      g.append(el('rect', {width: node.width, height: node.height, rx: 5}), el('text', {x: node.width / 2, y: 16}, 'NIL'));
+      content.append(g);
+      continue;
     }
+    const record = node.record;
+    const incident = (snapshot.edges ?? []).some(edge => (edge.source === record.id || edge.target === record.id) && edge.warnings.length);
+    const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `node ${record.color} ${record.warnings.length || incident ? 'warning' : ''}`, 'data-id': record.id});
+    g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : 'None'}\n${record.warnings.join('\n')}`));
+    g.append(el('rect', {width: node.width, height: node.height, rx: 12}));
+    const names = [record.id === snapshot.root ? 'ROOT' : '', record.names.join(', ')].filter(Boolean).join(' · ');
+    const maxNames = Math.floor((node.width - 20) / 7);
+    g.append(
+      el('text', {class: 'names', x: node.width / 2, y: 18}, names.length > maxNames ? names.slice(0, maxNames - 1) + '…' : names),
+      el('text', {class: 'key', x: node.width / 2, y: 38}, record.key.length > 9 ? record.key.slice(0, 8) + '…' : record.key),
+      el('text', {class: 'color', x: node.width / 2, y: 59}, record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),
+      el('text', {class: 'identity', x: node.width / 2, y: 74}, `#${record.id}`),
+    );
+    content.append(g);
   }
+  viewport.replaceChildren(content);
   bounds = viewport.getBBox();
   applyTransform();
-  document.querySelector('#counts').textContent = `${nodes.length} live nodes · ${nodes.filter(n => n.detached).length} detached · ${(data.warnings ?? []).length} warnings`;
+  const nodes = snapshot.nodes ?? [];
+  document.querySelector('#counts').textContent = `${nodes.length} live nodes · ${nodes.filter(n => n.detached).length} detached · ${(snapshot.warnings ?? []).length} warnings`;
   const warnings = document.querySelector('#warnings');
   warnings.replaceChildren();
-  for (const warning of data.warnings ?? []) { const p = document.createElement('p'); p.textContent = '⚠ '+warning; warnings.append(p); }
-  warnings.hidden = !data.warnings?.length;
+  for (const warning of snapshot.warnings ?? []) { const p = document.createElement('p'); p.textContent = '⚠ '+warning; warnings.append(p); }
+  warnings.hidden = !snapshot.warnings?.length;
+  svg.dataset.revision = snapshot.revision ?? '';
 }
 function fit() {
   if (!data.nodes?.length) return;
@@ -120,7 +112,7 @@ async function poll() {
     const status = document.querySelector('#status');
     status.textContent = next.status[0].toUpperCase()+next.status.slice(1);
     status.dataset.state = next.status;
-    document.querySelector('#notice').textContent = ({paused: 'Stopped frame · actual pointer state', running: 'Running · showing the last paused snapshot', ended: 'Session ended · last snapshot retained', waiting: 'Waiting for a registered tree', error: 'Snapshot unavailable'})[next.status] + (next.message ? ' — '+next.message : '');
+    document.querySelector('#notice').textContent = layoutError || ({paused: 'Stopped frame · actual pointer state', running: 'Running · showing the last paused snapshot', ended: 'Session ended · last snapshot retained', waiting: 'Waiting for a registered tree', error: 'Snapshot unavailable'})[next.status] + (next.message ? ' — '+next.message : '');
     if (next.revision !== revision) { data = next; revision = next.revision; render(); }
   } catch (_error) {
     document.querySelector('#status').textContent = 'Disconnected';

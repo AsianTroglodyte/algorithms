@@ -38,8 +38,9 @@ def create_server(port=0, token=None):
                 with lock:
                     body = json.dumps(state).encode()
                 self.respond(200, body)
-            elif path in ("", "app.js", "style.css"):
-                name, mime = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "text/javascript"), "style.css": ("style.css", "text/css")}[path]
+            elif path in ("", "app.js", "layout.js", "style.css", "vendor/elk.bundled.js"):
+                name = path or "index.html"
+                mime = "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "text/html; charset=utf-8"
                 self.respond(200, (STATIC / name).read_bytes(), mime)
             else:
                 self.respond(404, b'{}')

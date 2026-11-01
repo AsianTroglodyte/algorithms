@@ -80,8 +80,7 @@
 (defun rb-visualizer--event (session event)
   "Observe DAP events without changing ordinary debugger commands."
   (when (and rb-visualizer--url
-             (equal (plist-get (dap--debug-session-launch-args session) :name)
-                    "Red-black tree demo"))
+             (plist-get (dap--debug-session-launch-args session) :rb-visualizer))
     (setq rb-visualizer--session session)
     (pcase (gethash "event" event)
       ("stopped"
@@ -105,6 +104,7 @@
     (condition-case err
         (dap-debug (list :type "python" :debugger 'debugpy
                          :request "launch" :name "Red-black tree demo"
+                         :rb-visualizer t
                          :program (expand-file-name "visualizer_demo.py" rb-visualizer-directory)
                          :cwd rb-visualizer-directory :console "internalConsole"
                          :stopOnEntry t :justMyCode t))

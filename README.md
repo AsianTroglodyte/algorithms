@@ -6,8 +6,9 @@ through its actual pointer state from Emacs.
 ## Launch the visualizer
 
 Requires Python 3.10+, Emacs with `dap-mode` and its dependencies installed,
-and a modern browser. The browser and HTTP server have no third-party runtime
-dependencies; the Python debugger uses `debugpy`.
+and a modern browser. The browser bundles ELK.js locally for graph layout;
+there is no JavaScript installation or build step. The HTTP server uses the
+Python standard library; the Python debugger uses `debugpy`.
 
 ```sh
 python -m venv .venv
@@ -45,10 +46,10 @@ configuration are made by this project.
 - **Fit to view** explicitly fits all known nodes. Camera position and scale
   persist across pauses and NIL toggles; updates never auto-fit.
 - **Show NIL leaves** displays black placeholders for actual `None` children.
-- Node fill and R/B labels show the actual color. `#` labels are stable session
-  identities; hover for Python object addresses and parent information.
-- Blue labels name direct local variables referring to that node in the frame
-  where execution stopped. Multiple aliases are shown. Selecting a different
+- Node fill and RED/BLACK labels show the actual color. `#` labels are stable
+  session identities; hover for Python object addresses and parent information.
+- Labels inside each node name direct local variables referring to it in the
+  frame where execution stopped. Multiple aliases are shown. Selecting a different
   stack frame in Emacs does not change the browser labels.
 - Child edges are labeled L/R. Dashed amber edges, warning outlines, tooltips,
   and a warning list identify parent mismatches, shared children, and cycles.
@@ -104,9 +105,11 @@ Debuggers can themselves retain references through variable inspection or
 exception frames. Weak tracking does not prevent collection, but cannot force
 collection while the debugger or program still owns a node. Multiple program
 threads mutating the tree while only one is suspended are outside this demo's
-scope. Rendering uses a finite spanning forest for malformed graphs and draws
-the remaining actual child edges across it. It reports pointer inconsistencies,
-not every red-black invariant violation. Nonprimitive keys display their type
+scope. Rendering uses ELK's layered layout with orthogonal edge routing, ordered
+left/right attachment points, and reserved NIL slots. Detached nodes are grouped
+separately; malformed graphs retain their actual edges, including cycles and
+shared children. It reports pointer inconsistencies, not every red-black
+invariant violation. Nonprimitive keys display their type
 without invoking arbitrary user-defined `__repr__` code.
 
 Run the core checks from the repository root:
