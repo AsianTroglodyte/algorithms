@@ -1,9 +1,70 @@
 # Red-black trees
 
 Python red-black tree implementation and a browser companion for stepping
-through its actual pointer state from Emacs.
+through its actual pointer state from Emacs or VS Code.
 
-## Launch the visualizer
+## Launch from VS Code
+
+Requires Python 3.10+, VS Code 1.85+, the Microsoft **Python Debugger**
+extension (`ms-python.debugpy`), and a modern browser. The local bridge is
+packaged from this repository; no npm installation or publishing account is
+needed.
+
+From the repository root, set up Python if you have not already:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-visualizer.txt
+```
+
+Build and install the local extension:
+
+```sh
+python3 scripts/package_vscode.py
+code --install-extension dist/rb-tree-visualizer-0.1.0.vsix
+```
+
+Open **this repository folder** in VS Code. If it was open during installation,
+run **Developer: Reload Window**. Then:
+
+1. Open the Command Palette (`Ctrl+Shift+P`) and run **Red-black Tree: Debug Demo**.
+   The graph opens in your browser, and Python stops at entry.
+2. Set a breakpoint at `first = Node(30)` in `visualizer_demo.py`, then continue
+   (`F5`). The initial **Waiting** state is normal before the tree is registered.
+3. Use normal **Step Into** (`F11`), **Step Over** (`F10`), **Step Out**
+   (`Shift+F11`), and breakpoints. Step into insertions or rotations to watch
+   actual pointer changes. Place the browser beside VS Code.
+4. End debugging (`Shift+F5`). The browser keeps the final graph. Run
+   **Red-black Tree: Stop Visualizer Server** when finished.
+
+You can also select **Red-black tree demo** in Run and Debug and press `F5`;
+the supplied `.vscode/launch.json` starts the same companion automatically.
+**Red-black Tree: Open Visualizer** reopens the current graph if you close its
+browser tab. Only one tree debug session can run at a time.
+
+The interpreter defaults to this folder's `.venv/bin/python`. On Windows,
+create the environment with `py -m venv .venv` and use
+`.venv\Scripts\python.exe` for the install command above; the extension uses
+that Windows interpreter path automatically. To use another interpreter,
+set **Rb Visualizer: Python** (`rbVisualizer.python`) in workspace settings,
+for example:
+
+```json
+{"rbVisualizer.python": "/absolute/path/to/python"}
+```
+
+A `python` value in the debug configuration is also supported; the setting
+takes precedence. Paths beginning with `.` resolve against the repository.
+For another instrumented script in this repository, copy the demo launch
+configuration, change `program`, and retain `"rbVisualizer": true`.
+Ordinary, unmarked Python sessions do not start the companion.
+
+Startup errors appear in **View → Output → Red-black Tree**. The extension
+requires a trusted workspace and stops its server when its VS Code extension
+host closes. It uses the same browser controls and tracking constraints
+described below for Emacs.
+
+## Launch from Emacs
 
 Requires Python 3.10+, Emacs with `dap-mode` and its dependencies installed,
 and a modern browser. The browser bundles ELK.js locally for graph layout;
@@ -50,7 +111,7 @@ configuration are made by this project.
   session identities; hover for Python object addresses and parent information.
 - Labels inside each node name direct local variables referring to it in the
   frame where execution stopped. Multiple aliases are shown. Selecting a different
-  stack frame in Emacs does not change the browser labels.
+  stack frame in your editor does not change the browser labels.
 - Child edges are labeled L/R. Dashed amber edges, warning outlines, tooltips,
   and a warning list identify parent mismatches, shared children, and cycles.
   Parent pointers appear in tooltips and warnings rather than as ordinary edges.
@@ -74,9 +135,11 @@ snapshots. For a detached node created before instrumentation, explicitly call
 detached nodes cannot be recovered. The wrapper is installed once per Python
 process; launching a new debugger session creates fresh tracking state.
 
-Emacs observes DAP stopped/continued events, requests the top stopped frame,
-and evaluates `snapshot_wire(locals())` through debugpy. It then posts the
-serialized result to a separate Python server. No background thread in the
+The editor bridge observes DAP stopped/continued events, requests the top stopped
+frame, and evaluates `snapshot_wire(locals())` through debugpy. It then posts the
+serialized result to a separate Python server. Emacs uses `rb-visualizer.el`;
+VS Code uses the small JavaScript extension in `vscode-extension/`, with the
+public debugger tracker and `DebugSession.customRequest` APIs. No background thread in the
 suspended debuggee is required. Generation checks discard snapshot responses
 that arrive after resume, termination, or a newer pause. The browser polls the
 server every 250 ms and renders only published pauses; step-over and continue
@@ -91,6 +154,9 @@ The operation functions in `red_black_trees.py` are unchanged.
 
 Verified locally with Python 3.14, debugpy 1.8.22, Emacs 30.2, the installed
 dap-mode (0.8, including its February 2026 package), and headless Chromium.
+The VS Code integration was also verified in a real VS Code 1.144 extension
+host with the installed Microsoft Python Debugger: command launch, a rotation
+breakpoint, graph publication, line stepping, termination, and server cleanup.
 The Emacs integration observes the internal `dap--on-event` function and uses
 `dap--send-message` / `dap--make-request`, so a future dap-mode API change may
 require updating the small Lisp bridge. The upstream sources are
@@ -118,6 +184,25 @@ Run the core checks from the repository root:
 .venv/bin/python -m unittest test_visualizer test_time_complexity -v
 .venv/bin/python tests/debug_adapter_smoke.py
 emacs --batch -Q -l tests/emacs_smoke.el
+node --test tests/vscode_bridge.test.js tests/vscode_extension.test.js
+```
+
+The VS Code checks need Node.js 18+ and the Python environment above. They
+exercise the extension's bridge against real debugpy and the HTTP server:
+rotation pauses, stopped-frame aliases, stepping, exception stops, final-state
+retention, a second session, and responses arriving after resume or termination.
+They also check command/configuration registration and server cleanup with a
+stub of the VS Code API.
+
+For the optional real VS Code smoke test, run the following with the Microsoft
+Python and Python Debugger extensions installed. It opens a temporary VS Code
+window and browser, runs the demo, and closes the test window when finished:
+
+```sh
+code --new-window --disable-workspace-trust \
+  --user-data-dir /tmp/rb-vscode-test \
+  --extensionDevelopmentPath "$PWD/vscode-extension" \
+  --extensionTestsPath "$PWD/tests/vscode_host_smoke.js" "$PWD"
 ```
 
 The Emacs smoke test locates packages in the local ELPA and Straight build

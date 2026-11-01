@@ -1,4 +1,4 @@
-"""Debug this ordinary sequence through M-x rb-visualizer-debug."""
+"""Debug with M-x rb-visualizer-debug or VS Code's Red-black Tree: Debug Demo."""
 
 from red_black_trees import Node, Tree, delete, insert
 from visualizer.runtime import install_tracking, register_tree

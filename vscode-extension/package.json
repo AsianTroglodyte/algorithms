@@ -1,0 +1,35 @@
+{
+  "name": "rb-tree-visualizer",
+  "displayName": "Red-black Tree Visualizer",
+  "description": "Show the actual red-black tree pointer state alongside Python debugging.",
+  "version": "0.1.0",
+  "publisher": "rb-tree-local",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Debuggers", "Visualization"],
+  "main": "./extension.js",
+  "extensionKind": ["workspace"],
+  "extensionDependencies": ["ms-python.debugpy"],
+  "activationEvents": ["onDebugResolve:debugpy"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false } },
+  "contributes": {
+    "commands": [
+      { "command": "rbVisualizer.debug", "title": "Red-black Tree: Debug Demo" },
+      { "command": "rbVisualizer.open", "title": "Red-black Tree: Open Visualizer" },
+      { "command": "rbVisualizer.stop", "title": "Red-black Tree: Stop Visualizer Server" }
+    ],
+    "configuration": {
+      "title": "Red-black Tree Visualizer",
+      "properties": {
+        "rbVisualizer.python": {
+          "type": "string",
+          "default": "",
+          "description": "Python executable for the companion and demo. Relative paths resolve against the repository. Defaults to .venv/bin/python (.venv\\Scripts\\python.exe on Windows)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test ../tests/vscode_bridge.test.js ../tests/vscode_extension.test.js",
+    "package": "python3 ../scripts/package_vscode.py"
+  }
+}

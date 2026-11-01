@@ -2,3 +2,4 @@ VISUALIZER_SPEC.md
 .venv/
 __pycache__/
 *.pyc
+dist/

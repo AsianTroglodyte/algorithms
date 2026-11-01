@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Red-black tree demo",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/visualizer_demo.py",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true
+    }
+  ]
+}
