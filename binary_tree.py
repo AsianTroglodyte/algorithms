@@ -6,18 +6,18 @@ class Node:
 
     def __init__(self, key):
         """Initialize the values of the node."""
-        self.left: Node = None
-        self.right: Node = None
-        self.parent: Node = None
+        self.left: Node | None = None
+        self.right: Node | None = None
+        self.parent: Node | None = None
         self.key: int = key
 
 
 class Tree:
     """Tree that merely contains Root node."""
 
-    def __init__(self, root: Node = None):
+    def __init__(self, Node):
         """Initialize the root node."""
-        self.root = root
+        self.root: Node | None = None
 
 
 def inorder_tree_walk(node: Node) -> None:
@@ -55,7 +55,7 @@ def tree_search(node: Node, key: int) -> Node:
 
 
 def tree_minimum(node: Node) -> Node:
-    """Search a binary search tree to find the minimum value."""
+    """Search a tree to find the minimum value."""
     while node.left is not None:
         node = node.left
     return node
@@ -213,6 +213,17 @@ for node in all_nodes:
     tree_delete(tree, node)
     print(is_valid_bst(node4))
     print("\n")
+
+
+node10 = Node(10)
+node17 = Node(17)
+node4 = Node(4)
+node21 = Node(21)
+
+tree_minimum(node10)
+tree_minimum(node17)
+tree_minimum(node4)
+tree_minimum(node21)
 
 # found_minimum = tree_minimum_recursive(node4)
 # if found_minimum is not None:

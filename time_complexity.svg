@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="480" viewBox="0 0 1120 480">
+<rect width="100%" height="100%" fill="white"/>
+<g font-family="sans-serif" font-size="13" fill="#222">
+<text x="300.0" y="30" text-anchor="middle">Build a tree: n insertions</text>
+<text x="80" y="60" text-anchor="start">Key comparisons</text>
+<path d="M 80 350.0 h 440" stroke="#ddd" fill="none"/>
+<text x="72" y="354.0" text-anchor="end">0.0</text>
+<path d="M 80 282.5 h 440" stroke="#ddd" fill="none"/>
+<text x="72" y="286.5" text-anchor="end">65,945.6</text>
+<path d="M 80 215.0 h 440" stroke="#ddd" fill="none"/>
+<text x="72" y="219.0" text-anchor="end">131,891.2</text>
+<path d="M 80 147.5 h 440" stroke="#ddd" fill="none"/>
+<text x="72" y="151.5" text-anchor="end">197,836.8</text>
+<path d="M 80 80.0 h 440" stroke="#ddd" fill="none"/>
+<text x="72" y="84.0" text-anchor="end">263,782.4</text>
+<path d="M 86.875 350 v 6" stroke="#222"/>
+<text transform="translate(86.875,370) rotate(45)" text-anchor="start">256</text>
+<path d="M 107.5 350 v 6" stroke="#222"/>
+<text transform="translate(107.5,370) rotate(45)" text-anchor="start">1,024</text>
+<path d="M 190.0 350 v 6" stroke="#222"/>
+<text transform="translate(190.0,370) rotate(45)" text-anchor="start">4,096</text>
+<path d="M 520.0 350 v 6" stroke="#222"/>
+<text transform="translate(520.0,370) rotate(45)" text-anchor="start">16,384</text>
+<text x="300.0" y="425" text-anchor="middle">Number of nodes (n)</text>
+<polyline points="86.875,347.90372670807454 107.5,339.51863354037266 190.0,299.6894409937888 520.0,115.2173913043478" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="7 5"/>
+<polyline points="86.875,347.9436459748641 107.5,339.70082916828414 190.0,300.53286345108694 520.0,116.8397512495147" fill="none" stroke="#2563eb" stroke-width="2.5" />
+<circle cx="86.875" cy="347.9436459748641" r="4" fill="#2563eb"/>
+<circle cx="107.5" cy="339.70082916828414" r="4" fill="#2563eb"/>
+<circle cx="190.0" cy="300.53286345108694" r="4" fill="#2563eb"/>
+<circle cx="520.0" cy="116.8397512495147" r="4" fill="#2563eb"/>
+<text x="80" y="455" text-anchor="start">Blue: measured (random keys)</text>
+<text x="340" y="455" text-anchor="start">Orange dashed: n × log₂(n)</text>
+<text x="850.0" y="30" text-anchor="middle">One insertion into an existing tree</text>
+<text x="630" y="60" text-anchor="start">Key comparisons</text>
+<path d="M 630 350.0 h 440" stroke="#ddd" fill="none"/>
+<text x="622" y="354.0" text-anchor="end">0.0</text>
+<path d="M 630 282.5 h 440" stroke="#ddd" fill="none"/>
+<text x="622" y="286.5" text-anchor="end">4.4</text>
+<path d="M 630 215.0 h 440" stroke="#ddd" fill="none"/>
+<text x="622" y="219.0" text-anchor="end">8.8</text>
+<path d="M 630 147.5 h 440" stroke="#ddd" fill="none"/>
+<text x="622" y="151.5" text-anchor="end">13.2</text>
+<path d="M 630 80.0 h 440" stroke="#ddd" fill="none"/>
+<text x="622" y="84.0" text-anchor="end">17.5</text>
+<path d="M 636.875 350 v 6" stroke="#222"/>
+<text transform="translate(636.875,370) rotate(45)" text-anchor="start">256</text>
+<path d="M 657.5 350 v 6" stroke="#222"/>
+<text transform="translate(657.5,370) rotate(45)" text-anchor="start">1,024</text>
+<path d="M 740.0 350 v 6" stroke="#222"/>
+<text transform="translate(740.0,370) rotate(45)" text-anchor="start">4,096</text>
+<path d="M 1070.0 350 v 6" stroke="#222"/>
+<text transform="translate(1070.0,370) rotate(45)" text-anchor="start">16,384</text>
+<text x="850.0" y="425" text-anchor="middle">Number of nodes (n)</text>
+<polyline points="636.875,226.83535281539557 657.5,196.04419101924447 740.0,165.25302922309336 1070.0,134.46186742694226" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="7 5"/>
+<polyline points="636.875,207.20598717034923 657.5,174.95224518888097 740.0,144.16108339272984 1070.0,115.2173913043478" fill="none" stroke="#2563eb" stroke-width="2.5" />
+<circle cx="636.875" cy="207.20598717034923" r="4" fill="#2563eb"/>
+<circle cx="657.5" cy="174.95224518888097" r="4" fill="#2563eb"/>
+<circle cx="740.0" cy="144.16108339272984" r="4" fill="#2563eb"/>
+<circle cx="1070.0" cy="115.2173913043478" r="4" fill="#2563eb"/>
+<text x="630" y="455" text-anchor="start">Blue: measured (random keys)</text>
+<text x="890" y="455" text-anchor="start">Orange dashed: log₂(n)</text>
+</g></svg>

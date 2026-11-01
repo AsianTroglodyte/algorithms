@@ -1,0 +1,452 @@
+* Questions to consider doing and asking students
+
+ - *13.1-2* Shows immediately why inserting a node as black causes a black-height
+   problem, while inserting red risks only the red-red property. Excellent
+   motivation for RB-INSERT.
+ - *13.1-5* Probably the most important exercise in §*13.1. *It makes students
+   derive why RB trees cannot become arbitrarily skewed: longest path ≤ twice
+   shortest path. This connects properties 4 and 5 directly to balance.
+ - *13.2-3* Best exercise for understanding what a rotation physically does: one
+   region gets deeper, one stays put, one gets shallower.
+   - COVERED in the section of "why rotations"
+   -
+
+ - *13.2-4* Best exercise for understanding why rotations are powerful: any BST
+   shape can be transformed into any other using only \(O(n)\) rotations while
+   preserving order.
+
+ - *13.3-1* Answers the crucial question: why insert red? Because black would
+   immediately disturb black height.
+
+
+ - *13.3-2* Walk through an entire insertion sequence. This turns the fixup cases
+   from abstract diagrams into something concrete.
+ - *13.3-3* Extremely important for the way you're thinking about teaching it:
+   explicitly verify that the insertion transformations preserve property 5 /
+   black height.
+ - *13.4-1* In the 4th edition: understand why deleting a red node doesn't disturb
+   black heights. This establishes why deleting black is the difficult case.
+ - *13.4-4* Do the full deletion sequence. Deletion is difficult enough that
+   students need an actual trace rather than only pseudocode.
+ - *13.4-6* Perhaps the single best deletion exercise: count black nodes through
+   every fixup transformation and verify the black-height relationship. This
+   explains why the bizarre-looking deletion cases work.
+
+even more concentrated: 13.1-5,13.2-3,13.2-4,13.3-2,13.3-3,13.4-6
+
+* Binary Search trees
+** Binary search trees weakness - segueo
+
+Lets suppose that we wanted to create a binary search tree.
+- first let's add 1
+- let's add 2
+- let'd add 3
+- up until ten...
+
+(ask audience) How does the binary search tree look so far guys?
+(ask audience) what is the issue?
+
+That's right it no longer really gives us a binary search. If anything, we
+basically have a linked list.
+
+Of course, this is an exaggeration of how binary search trees might end up.
+Nevertheless, the fact that height is not so bounded in a binary search tree. is
+a huge disadvantage.
+
+Wouldn't it be great if we could somehow balance it?
+
+1. BST property and inorder ordering. Make absolutely clear that for every node,
+   keys in the left subtree are smaller and keys in the right subtree are
+   larger. This is the invariant rotations must preserve.
+2. BST insertion. This is simple and directly sets up RB-INSERT: descend to a
+   NIL position and attach the new node there.
+3. Minimum / successor just enough for deletion. Students need to understand
+   why, when deleting a node with two children, we use its successor—usually the
+   minimum of its right subtree.
+4. TRANSPLANT. Definitely worth covering if you're doing deletion.
+5. BST deletion and its three structural cases.
+6. Then introduce RB insertion/deletion as the same structural operations plus
+   additional bookkeeping and fixup.
+
+* Red-black tree
+Enter
+ - *balanced search trees* - balanced search trees are tree data structures that
+   maintain a height of O(log n) for n items
+
+Red-black trees are a particular type of balanced search tree.
+
+What are red-black trees *exactly* then?
+
+they are binary search trees plus a few other properties.
+
+they have a couple of properties:
+ 1. A node is either red or black.
+ 2. the root is black
+ 3. leaaves (NIL) are black.
+ 4. If a node is red, then its children are black.
+ 5. All paths from a node to its NIL descendants contain the same number of
+    black nodes.
+
+Why are these important? I'll show you but first we need to get a really good
+handle of these properties
+
+Show a picture of the red-black trees and specifically point out each
+demonstrate property. Use the same image from this place
+https://www.youtube.com/watch?v=qvZGUFHWChY&list=PL9xmBV_5YoZNqDI8qfOZgzbqahCUmUEin
+ 1. A node is either red of black. (show all nodes they are all clearly either
+    black or red)
+ 2. the root is black. easy
+ 3. leaaves (NIL) are black. pay special attention how the leaves are black.
+    Also point out that often times the nil will point to some nil value to not
+    take up space.
+ 4. If a node is red, then its children are black. subtlety here. (ask audiance)
+    why does a Red black tree fulfills this criteria aren't the red nodes at the
+    end violating this property? Of course not! Nil is considered black.
+ 5. All paths from a node to its NIL descendants contain the same number of
+    black nodes. IMPORTANT show that this is true for each node. start with just
+    a single one. Start with the first path. (ask audience) how long is the path
+    from root to [BLANK]: 3, 2, 1. When counting the number of black nodes from
+    some node to the nil descendant we don't count the starting node if it's
+    black. show a few more paths; IMPORTANT show paths of non root and non-black
+    nodes. then we can take the rest for granted.
+
+
+(play find-the-red black tree):
+ - play once with a correct answer
+ - play once without a correct answer. the most correct looking answer should be
+   not have a proper BST invariant.
+
+** Why
+What do these properties actually do?
+
+The longest path (root to farthest NIL) is no more than twice the length of the
+   shortest path (root to nearest NIL)
+    - Shortest possible path: all black nodes
+    - longest possibl path: alternating red and black
+(show examples AGAIN) be very deliberate. we can start to see why red and black
+colors are important.
+
+Then show the lemma. and the not so formal proof.
+
+*lemma* The important lemma says:
+ - h <= 2 * lg(n+1)
+
+The intuition is just two facts.
+
+First, black-height grows slowly compared with the number of nodes. If every
+path below a node must contain (k) black nodes, the tree needs at least
+
+2^k-1
+
+internal nodes. Each extra black level forces another layer of branching.
+
+Second, the tree cannot have too many red nodes between black nodes. Since red
+nodes cannot have red children, the longest path can alternate:
+
+B - R - B - R - B
+
+but never:
+
+B - R - R - B
+
+So the actual height is at most about twice the black-height:
+
+h <= 2bh(root)
+
+Now combine them:
+
+n <= 2^{bh(root)}-1
+
+and since
+
+bh(root) >= h/2
+
+we get:
+
+n >= 2^{h/2}-1
+
+Then just rearrange:
+
+ - n+1 >= 2^{h/2}
+ - lg(n+1) >= h/2
+ - 2lg(n+1) >= h
+ - h <= 2 * lg(n+1)
+
+since a lot of operation such as search, max, min, etc take time propoprtional to height
+
+runtime(n) = c*(2 * lg(n+1))
+
+as you might expect this boils down to a time complexity of:
+ - runtime(n) = O(lg(n))
+
+The equal-black-height rule forces enough branching, and the no-red-red rule
+prevents paths from stretching too much. Together, they force logarithmic
+height.
+
+But why? these specific properties they seem to work, but why do this and not
+just balance it *more explicitly*.
+
+We want a search tree to stay short, because its operations depend on height. A
+naive solution would be to keep the tree perfectly balanced after every
+insertion or deletion, but maintaining such a strict shape could require too
+much restructuring. for an algorithm like DSW the time complexity is big theta
+of (n). definitely worse than lg(n). Red-black trees use a weaker set of
+invariants instead. Those properties/invariants are strong enough to guarantee
+height \(O(\log n)\), but simple enough that insertions and deletions can
+restore them efficiently using local recoloring and rotations.
+
+Basically, red-black trees do not try to maintain the best possible shape. They
+maintain just enough balance to guarantee (O(\lg n)) height while keeping
+updates very efficient. Generally speaking the stricter the balancing the
+greater the runtime (though it might not necessarily change the asymptotic
+runtime).
+
+
+** Operations
+binary search tree has three primary operations:
+ - Search -
+ - insert -
+ - remove -
+
+*Search* there's a couple more that the book mentions such as finding the
+   minimum and maximum value:
+    - (ask audience) Do we have to change search, minimum, or maximum operations
+      for a red black tree? why? as far operations those operations are
+      concerned pretty much exactly the same as regular BSTs. still has largely
+      the same invariant as the regular: BST "all values in its left subtree are
+      smaller than the node's value, and all values in its right subtree are
+      larger." Of course, it will be more balanced which leads us to our time
+      complexity of theta lg(n), but we'll get into the nitty gritty of that
+      later. In any case, operations that don't mutate the tree don't really
+      care about redness or blackness they just see a BST and will work fine
+      without any modification.
+
+insert and remove are mutate the tree and are therefore responsible for
+maintaining our BST invariant of "all values in its left subtree are smaller
+than the node's value, and all values in its right subtree are larger." in
+addition to the red black tree specific ones:
+ 1. A node is either red of black.
+ 2. the root is black
+ 3. leaves (NIL) are black.
+ 4. If a node is red, then its children are black.
+ 5. All paths from a node to its NIL descendants contain the same number of
+    black nodes.
+
+As it turns out, making sure that insert and remove keep all these properties is
+very difficult. Remove in particular is nasty.
+
+Before we do that, insertion and delete need a very specific helper function:
+ - rotation
+
+* Rotations
+ 1. alters the structure of a tree by rearranging the subtrees
+ 2. goal is to decrease the height of the tree
+    - red-black trees: max height of O(log n)
+    - larger subtrees up, smaller subtrees down
+ 3. does not affect the order of elements; "for a given node, all values in left
+    subtrees are still smaller than that node. all values in its right subtree
+    are will remain larger."
+
+** left-rotation
+Show an animation or steps for the left rotation:
+ - emphasize the different parts: rotated node, left parent node, left child
+   subtree and how they are moved around.
+   - make left parent node new left child; detach left child subtree
+   - attach left child subtree to what was previously the left parent node
+ - (ask audience) so why does this not affec the order of elements? let's think
+   about this for a second
+ - (ask audience) to make things easier let's break rotation into three separate
+   operations.
+   1. Detach left subtree of our node and make parent new left child. (ask
+      audience) why does making the parent on the left the child of our node
+      preserve ordering? (hint) the reason why relies on the fact that our tree is
+      already ordered. It works because our parent on the left of our node will
+      always be smaller so when we put it on the left the ordering is preserved.
+      Put another way, since the node is the right child of it's parent the
+      parent is smaller, therefore we can make it a left child of the node while
+      preserving its elements.
+   2. we take our previous detached left subtree and make it a right child of
+      our previous parent node. (ask audience) How does this preserve ordering?
+      (hint) again, the reason why relies on the fact that our tree is already
+      ordered. (hint) look at where the left child subtree was at relative to
+      the parent and the rotated node beforehand. (explanation) It works if you
+      look at where this subtree was before. It was the left subtree of 10, so
+      every value in it is less than 10. But it was also the right subtree of 5,
+      so every value in it is greater than 5. Therefore: $$5 < \text{every value
+      in the subtree} < 10$$ So the $5<{6,8,9}<10$ subtree can safely become the
+      right subtree of 5.
+
+Rotations preserve the BST ordering invariant while changing the shape of the
+tree.
+
+Red-black trees use rotations, together with recoloring (which we will
+cover later), to restore their red-black invariants after insertion and
+deletion.
+
+keep in mind that they help preserve this balance invariant. The longest path
+(root to farthest NIL) is no more than twice the length of the shortest path
+(root to nearest NIL)
+    - Shortest possible path: all black nodes
+    - longest possibl path: alternating red and black
+
+Let's do some rotations! emphasize the different parts: rotated node, left
+parent node, left child subtree and how they are moved around.
+ - Work through another left rotation
+ - Work through maybe a right rotation as a challenge (definetely probably want
+   to keep left rotation as reference.)
+
+* Insertions
+
+Relationships in a binary tree. our inserted node has about three relationships
+ - The inserted node is at the bottom
+ - the parent is just above it
+ - the grandparent is above the parent
+ - The uncle is the sibling of the parent.
+
+** At a high level
+1. we insert our node and color it red. If you look closely at our example
+   earlier we can see that as we inserted our node it was colored red.
+2. recolor and rotate nodes to fix violation.
+
+There are specifically two properties that could be violated due to the
+inserting a red node.
+ - (ask audience) which two do you think it is, I have the properties listed
+   right here
+ - (hint) One of them is pretty obvious in fact you're looking at an instance of it
+   right now.
+ - (answer) that's right. it is 2 and 4. 4 is shown in the picture a red node
+   must have two black children.
+ - (answer) you can also break the root being black. If you insert a red node
+   and it is the first node. then that means property of the root being black is
+   violated.
+
+
+** Four scenarios nitty gritty
+
+After step 1, inserting our node and coloring it red. there are four scenarios
+where we have to recolor and rotate nodes to fix violations. The first case is:
+ - the inserted node being the root
+ - the inserted node's uncle being red
+ - the inserted node's uncle being black and the shape being triangle (more on
+   that later)
+ - the inserted node's uncle being black and the shape being a line (again, more on that later)
+
+*** Why do we only have 4 states?
+
+why do we only have to worry about 4 invalid states to fix up?
+
+why don't we consider scenarios like the following?
+
+At first it might seem like there are many possible configurations after
+insertion. But the existing tree must already be a valid red-black tree, so most
+configurations are impossible.
+
+ 1. In the first example, nothing is wrong. We inserted a red node under a black
+    parent, so all the red-black properties still hold. There is nothing to fix.
+ 2. The second is basically the same story. Assuming this is a subtree and the
+    red grandparent is valid relative to whatever is above it, insertion has not
+    created a violation.
+ 3. In the third example, the tree was already invalid before we inserted the
+    new node. (ask audience) which invariants/properties are broken here?. So
+    this configuration can never be the starting point of RB-INSERT. This
+    assumption—that we start with a valid red-black tree—eliminates most
+    conceivable configurations.
+ 4. In the fourth example, (ask audience) what is the issue the inserted node is
+    black. But red-black insertion initially colors
+
+*** 1. inserted node = root
+Okay this one is easy. What property does this scenario turn
+
+*** 2. inserted node's uncle = red
+
+
+*** 3. inserted node's uncle = black (triangle)
+
+
+*** 4. inserted node's uncle = black (line)
+
+
+** motivated examples
+*** The small one
+1. this one is case 1
+2. this one is fine
+3. this one is case 4 - black uncle (line)
+   - we rotate 15 in the opposite direction of 1 (ask an audience)
+   - then we recolor the parent and grand parent.
+   - IMPORTANT we are back to a balanced red black tree.
+   - in a regular BST insertion we would just end up with a linked list. Very nice!
+*** The Big one
+1. (ask audience) what is our inserted node? (ask) valid? (ask) what case is
+   this? this is case 2. We recolor uncle, father, and grandfather. (recolor) then move on
+2. (ask) And we're done right? yes? no? maybe so? we're not done! it turns out
+   we just moved our property violation up the tree with 12 and 15 now both red.
+   So, this is really important.
+   - Our violations may very bubble to the tree. we must keep applying our
+      fixes to any new violations.
+   - So we now consider the violating nodes. farther up. what we called the
+     inserted node can perhaps more accurately and generally be thought as the
+     violating node when the insertion *does* yield a violation. (add previously
+     and currently violating node tags)
+   - what case addresses this. hint consider this diamond here. this is case 3
+     (fix) and thus we do a right rotation the parent (make a rotation drawing
+     and move things around.)
+3. So, yeah still not done. (ask) what's the violating node? it's 15 and this
+   resembles which case? where's the father, grandfather, and uncle? (maybe start
+   labelling again)
+4. so we have even more fixing. since we're doing another rotation let me be extra clear
+
+*** Insertion Time complexity
+(ask what is the time complexity)
+
+1. insert: O(log n) - we must hike down the red black-trees to insert. maximum
+   height of red-black trees. roughly what height are red black trees from what
+   we remember in the beginning
+2. Color red: O(1) - what is the time complexity of coloring red.
+3. Fix violations (this is some loop):
+    Constant # of: (starte here for 3)
+        a. recolor: O(1)
+        b. rotation: O(1)
+
+
+* Deletions
+Now we're onto deletions which really are the hard part.
+
+Before getting deep into deleation we to know what transplants are.
+
+** transplants
+transplants are a way of helping us move subtrees within the tree.
+
+In particular they are important for deleting trees.
+
+let's take a look at transplants. and then how they help use delete things
+
+transplant must consider three cases for the old_root the root that is about to
+the replaced:
+ 1. it is a root node which is the first if in our code
+ 2. it is a left node which is handled in elif over here
+ 3. it is a right node which is handled in the eles
+
+
+
+
+* The empirical results and analysis
+The key column is comparisons/(n log2 n). Because it stays roughly
+constant as the number of nodes grows, the total insertion work scales
+like \(n\log n\), meaning each insertion averages \(O(\log n)\). Random
+insertion performs best, while ascending, descending, and duplicate inputs
+require more comparisons, but the red-black tree remains balanced.
+
+The insertion and deletion times increase as the tree grows, but timing
+can vary due to Python and system overhead. The three passing tests
+confirm that the tested trees maintain logarithmic height, insertion
+comparisons stay within an \(O(n\log n)\) bound, and all nodes can be
+deleted successfully.
+
+
+** does this line up with the theory
+ Red-black trees guarantee:
+- Search: \(O(\log n)\)
+- Single insertion: \(O(\log n)\)
+- Single deletion: \(O(\log n)\)
+- Building or deleting an entire \(n\)-node tree: \(O(n\log n)\)
+

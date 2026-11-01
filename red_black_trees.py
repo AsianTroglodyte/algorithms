@@ -14,26 +14,19 @@ class Node:
 
     def __init__(self, key):
         """Initialize the values of the node."""
-        self.color: Color = None
-        self.key = key
-        self.left = None
-        self.right = None
-        self.parent = None
-
-# 1. Every node is either red or black.
-# 2. The root is black.
-# 3. Every leaf (NIL) is black.
-# 4. If a node is red, then both its children are black.
-# 5. For each node, all simple paths from the node to descendant
-# leaves contain the same number of black nodes.
+        self.color: Color = Color.RED
+        self.key: int = key
+        self.left: Node | None = None
+        self.right: Node | None = None
+        self.parent: Node | None = None
 
 
 class Tree:
     """Tree that merely contains Root node."""
 
-    def __init__(self, root: Node = None):
+    def __init__(self):
         """Initialize the root node."""
-        self.root = root
+        self.root: Node | None = None
 
 
 def left_rotate(tree: Tree, rotate_down: Node):
@@ -88,32 +81,30 @@ def right_rotate(tree: Tree, rotate_down: Node):
     rotate_down.parent = rotate_up
 
 
-def insert(tree: Tree, insert_node: Node):
-    """Insert insert_node into tree and restore the red-black properties."""
-    parent_node = None
-    search_node = tree.root
+def insert(tree: Tree, new_node: Node):
+    """Insert new_node into tree and restore the red-black properties."""
+    current_node = tree.root
+    parent_of_new_node = None
 
-    # Find the empty leaf position where insert_node belongs.
-    while search_node is not None:
-        parent_node = search_node
-        if insert_node.key < search_node.key:
-            search_node = search_node.left
+    # Find the empty leaf position where new_node belongs.
+    while current_node is not None:
+        parent_of_new_node = current_node
+        if new_node.key < current_node.key:
+            current_node = current_node.left
         else:
-            search_node = search_node.right
+            current_node = current_node.right
 
-    insert_node.parent = parent_node
-    if parent_node is None:
-        tree.root = insert_node
-    elif insert_node.key < parent_node.key:
-        parent_node.left = insert_node
+    new_node.parent = parent_of_new_node
+    if parent_of_new_node is None:
+        tree.root = new_node
+    elif new_node.key < parent_of_new_node.key:
+        parent_of_new_node.left = new_node
     else:
-        parent_node.right = insert_node
+        parent_of_new_node.right = new_node
 
     # A new node replaces a black NIL leaf and starts red.
-    insert_node.left = None
-    insert_node.right = None
-    insert_node.color = Color.RED
-    insert_fixup(tree, insert_node)
+    new_node.color = Color.RED
+    insert_fixup(tree, new_node)
 
 
 def insert_fixup(tree: Tree, fix_node: Node):
@@ -227,7 +218,7 @@ def delete(tree: Tree, delete_node: Node):
     delete_node.parent = None
 
 
-def _node_color(node: Node):
+def node_color(node: Node):
     """Treat an absent node as a black NIL leaf."""
     return Color.BLACK if node is None else node.color
 
@@ -237,11 +228,11 @@ def delete_fixup(tree: Tree, fix_node: Node, parent_node: Node = None):
     if fix_node is not None:
         parent_node = fix_node.parent
 
-    while fix_node != tree.root and _node_color(fix_node) == Color.BLACK:
+    while fix_node != tree.root and node_color(fix_node) == Color.BLACK:
         if fix_node == parent_node.left:
             sibling = parent_node.right
 
-            if _node_color(sibling) == Color.RED:
+            if node_color(sibling) == Color.RED:
                 # A black sibling replaces the red sibling near fix_node.
                 sibling.color = Color.BLACK
                 parent_node.color = Color.RED
@@ -254,15 +245,15 @@ def delete_fixup(tree: Tree, fix_node: Node, parent_node: Node = None):
                 continue
 
             if (
-                _node_color(sibling.left) == Color.BLACK
-                and _node_color(sibling.right) == Color.BLACK
+                node_color(sibling.left) == Color.BLACK
+                and node_color(sibling.right) == Color.BLACK
             ):
                 # Move the extra blackness up when the sibling cannot lend one.
                 sibling.color = Color.RED
                 fix_node = parent_node
                 parent_node = fix_node.parent
             else:
-                if _node_color(sibling.right) == Color.BLACK:
+                if node_color(sibling.right) == Color.BLACK:
                     # Rotate a near red child into the far-child position.
                     if sibling.left is not None:
                         sibling.left.color = Color.BLACK
@@ -281,7 +272,7 @@ def delete_fixup(tree: Tree, fix_node: Node, parent_node: Node = None):
         else:
             sibling = parent_node.left
 
-            if _node_color(sibling) == Color.RED:
+            if node_color(sibling) == Color.RED:
                 # A black sibling replaces the red sibling near fix_node.
                 sibling.color = Color.BLACK
                 parent_node.color = Color.RED
@@ -294,15 +285,15 @@ def delete_fixup(tree: Tree, fix_node: Node, parent_node: Node = None):
                 continue
 
             if (
-                _node_color(sibling.right) == Color.BLACK
-                and _node_color(sibling.left) == Color.BLACK
+                node_color(sibling.right) == Color.BLACK
+                and node_color(sibling.left) == Color.BLACK
             ):
                 # Move the extra blackness up when the sibling cannot lend one.
                 sibling.color = Color.RED
                 fix_node = parent_node
                 parent_node = fix_node.parent
             else:
-                if _node_color(sibling.left) == Color.BLACK:
+                if node_color(sibling.left) == Color.BLACK:
                     # Rotate a near red child into the far-child position.
                     if sibling.right is not None:
                         sibling.right.color = Color.BLACK
