@@ -46,6 +46,10 @@ def assert_clear_routes(geometry):
 def main():
     state = fixture({'20': ('10', '28'), '10': (None, None), '28': ('25', '30'),
                      '25': (None, None), '30': (None, None), '99': (None, None)}, detached=('99',))
+    aliases = {'20': ['tree_root', 'root_alias'], '10': ['rotate_down'],
+               '28': ['rotate_up'], '99': ['detached_node']}
+    for node in state['nodes']:
+        node['names'] = aliases.get(node['id'], [])
     server, token = create_server()
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -68,6 +72,21 @@ def main():
             page.wait_for_function("() => document.querySelector('#status').textContent === 'Waiting'")
             publish(state)
             page.wait_for_function("() => document.querySelectorAll('.node').length === 6")
+            # Names belong to external callouts, with a connector ending at
+            # the body boundary. Keys, colors, and identities stay inside.
+            assert page.locator('.node-label').count() == len(aliases)
+            assert page.locator('.node > .names').count() == 0
+            assert page.locator('.node-label').evaluate_all('''labels => labels.every(label => {
+                const body = label.parentNode.querySelector('.node-body').getBBox();
+                const text = label.querySelector('.names').getBBox();
+                const position = label.transform.baseVal.consolidate().matrix;
+                const connector = label.parentNode.querySelector('.label-connector');
+                return position.e > body.x + body.width && text.x >= 0 &&
+                    text.x + text.width <= label.querySelector('rect').width.baseVal.value &&
+                    Number(connector.getAttribute('x1')) === body.x + body.width &&
+                    Number(connector.getAttribute('x2')) === position.e &&
+                    Number(connector.getAttribute('y1')) === position.f + 14;
+            })''')
             page.locator('#fit').click()
             page.screenshot(path='/tmp/rb-visualizer-default.png')
             positions = page.locator('.node').evaluate_all('(nodes) => nodes.map(node => node.getAttribute("transform"))')
@@ -91,7 +110,7 @@ def main():
                 by_id = {n['id']: n for n in geometry['nodes']}
                 for edge in sample['edges']:
                     a, b = by_id[edge['source']], by_id[edge['target']]
-                    ax, bx = a['x'] + a['width']/2, b['x'] + b['width']/2
+                    ax, bx = a['x'] + a['bodyWidth']/2, b['x'] + b['bodyWidth']/2
                     assert bx < ax if edge['side'] == 'left' else bx > ax, edge
                     assert b['y'] > a['y'], edge
                 groups = {g['id']: g for g in geometry['groups']}
@@ -129,7 +148,7 @@ def main():
             page.wait_for_function("() => document.querySelector('#status').textContent === 'Ended'")
             assert not errors, errors
             browser.close()
-            print('PASS: ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
+            print('PASS: external attached labels, ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
     finally:
         server.shutdown()
         server.server_close()

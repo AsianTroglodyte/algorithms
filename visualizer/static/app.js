@@ -61,14 +61,25 @@ async function render() {
     const incident = (snapshot.edges ?? []).some(edge => (edge.source === record.id || edge.target === record.id) && edge.warnings.length);
     const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `node ${record.color} ${record.warnings.length || incident ? 'warning' : ''}`, 'data-id': record.id});
     g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : 'None'}\n${record.warnings.join('\n')}`));
-    g.append(el('rect', {width: node.width, height: node.height, rx: 12}));
-    const names = [record.id === snapshot.root ? 'ROOT' : '', record.names.join(', ')].filter(Boolean).join(' · ');
-    const maxNames = Math.floor((node.width - 20) / 7);
+    g.append(el('rect', {class: 'node-body', width: node.bodyWidth, height: node.height, rx: 12}));
+    if (node.label) {
+      const label = node.label;
+      const centerY = label.y + label.height / 2;
+      g.append(el('line', {class: 'label-connector', x1: node.bodyWidth, y1: centerY, x2: label.x, y2: centerY}));
+      const tag = el('g', {class: 'node-label', transform: `translate(${label.x},${label.y})`});
+      const maxNames = Math.floor((label.width - 20) / 7);
+      const text = label.text.length > maxNames ? label.text.slice(0, maxNames - 1) + '…' : label.text;
+      tag.append(
+        el('title', {}, label.text),
+        el('rect', {width: label.width, height: label.height, rx: 7}),
+        el('text', {class: 'names', x: 10, y: label.height / 2}, text),
+      );
+      g.append(tag);
+    }
     g.append(
-      el('text', {class: 'names', x: node.width / 2, y: 18}, names.length > maxNames ? names.slice(0, maxNames - 1) + '…' : names),
-      el('text', {class: 'key', x: node.width / 2, y: 38}, record.key.length > 9 ? record.key.slice(0, 8) + '…' : record.key),
-      el('text', {class: 'color', x: node.width / 2, y: 59}, record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),
-      el('text', {class: 'identity', x: node.width / 2, y: 74}, `#${record.id}`),
+      el('text', {class: 'key', x: node.bodyWidth / 2, y: 26}, record.key.length > 9 ? record.key.slice(0, 8) + '…' : record.key),
+      el('text', {class: 'color', x: node.bodyWidth / 2, y: 50}, record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),
+      el('text', {class: 'identity', x: node.bodyWidth / 2, y: 69}, `#${record.id}`),
     );
     content.append(g);
   }

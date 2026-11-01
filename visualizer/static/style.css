@@ -19,13 +19,15 @@ main { flex: 1; min-height: 160px; position: relative; overflow: hidden; }
 .edge { stroke: #8291a6; stroke-width: 1.6; stroke-linejoin: round; fill: none; marker-end: url(#arrow); }
 .edge.warning { stroke: #bd710c; stroke-dasharray: 6 4; stroke-width: 2.5; }
 .edge-label { fill: #62728a; font: 11px system-ui; paint-order: stroke; stroke: #f5f6f8; stroke-width: 4px; }
-.node rect { fill: #202b3c; stroke: #fff; stroke-width: 2; }
-.node.red rect { fill: #bf3547; }
-.node.unknown rect { fill: #778294; }
-.node.warning rect { stroke: #dc951f; stroke-width: 3; stroke-dasharray: 5 3; }
+.node .node-body { fill: #202b3c; stroke: #fff; stroke-width: 2; }
+.node.red .node-body { fill: #bf3547; }
+.node.unknown .node-body { fill: #778294; }
+.node.warning .node-body { stroke: #dc951f; stroke-width: 3; stroke-dasharray: 5 3; }
 .key { fill: white; font: 600 16px system-ui; text-anchor: middle; dominant-baseline: central; }
 .color { fill: #fff; font: 9px system-ui; text-anchor: middle; letter-spacing: .08em; }
-.names { fill: #fff; font: 500 11px system-ui; text-anchor: middle; }
+.label-connector { stroke: #96a4b7; stroke-width: 1.5; }
+.node-label rect { fill: #fff; stroke: #cdd6e0; stroke-width: 1; }
+.names { fill: #35445b; font: 500 11px ui-monospace, monospace; dominant-baseline: central; }
 .identity { fill: #fff; opacity: .65; font: 9px ui-monospace, monospace; text-anchor: middle; }
 .detached-region { fill: #eef1f6; stroke: #d4dce7; stroke-dasharray: 5 5; }
 .group-label { fill: #8994a6; font: 600 11px system-ui; letter-spacing: .1em; }

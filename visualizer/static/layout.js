@@ -1,5 +1,6 @@
 // ELK owns geometry; the SVG renderer owns appearance and the camera.
 const elk = new window.ELK();
+const bodyWidth = 100, bodyHeight = 84, labelGap = 16;
 const options = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
@@ -47,14 +48,20 @@ export async function layout(nodes, edges, root) {
     });
     const group = groups.get(id);
     const heading = [node.id === root ? 'ROOT' : '', node.names.join(', ')].filter(Boolean).join(' · ');
-    const width = Math.max(100, Math.min(220, heading.length * 7 + 24));
+    const label = heading ? {
+      text: heading, x: bodyWidth + labelGap, y: 28,
+      width: Math.max(52, Math.min(280, heading.length * 7 + 20)), height: 28,
+    } : null;
+    // Reserve the callout as part of the layout footprint so other nodes and
+    // child edges cannot pass through it. Ports still attach to the body.
+    const width = label ? label.x + label.width : bodyWidth;
     group.children.push({
-      id: node.id, width, height: 84, record: node,
+      id: node.id, width, height: bodyHeight, bodyWidth, label, record: node,
       layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
       ports: [
-        {id: `${node.id}:in`, x: width / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}},
+        {id: `${node.id}:in`, x: bodyWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}},
         ...['left', 'right'].map((side, i) => ({
-          id: `${node.id}:${side}`, x: width * (i ? .75 : .25), y: 84,
+          id: `${node.id}:${side}`, x: bodyWidth * (i ? .75 : .25), y: bodyHeight,
           width: 0, height: 0, layoutOptions: {'elk.port.side': 'SOUTH'},
         })),
       ],

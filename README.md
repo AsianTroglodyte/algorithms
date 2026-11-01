@@ -109,7 +109,7 @@ configuration are made by this project.
 - **Show NIL leaves** displays black placeholders for actual `None` children.
 - Node fill and RED/BLACK labels show the actual color. `#` labels are stable
   session identities; hover for Python object addresses and parent information.
-- Labels inside each node name direct local variables referring to it in the
+- Labels attached outside each node name direct local variables referring to it in the
   frame where execution stopped. Multiple aliases are shown. Selecting a different
   stack frame in your editor does not change the browser labels.
 - Child edges are labeled L/R. Dashed amber edges, warning outlines, tooltips,
