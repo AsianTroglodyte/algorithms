@@ -172,7 +172,7 @@ class Adapter {
   }
 }
 
-test('real debugpy → VS Code bridge → HTTP: None locals, rotation, step, restart, exception, end', {timeout: 90000}, async t => {
+test('real debugpy → VS Code bridge → HTTP: shared NIL, rotation, step, restart, exception, end', {timeout: 90000}, async t => {
   const server = new Companion(PYTHON, ROOT);
   t.after(() => server.stop());
   const url = await server.start();
@@ -215,7 +215,9 @@ test('real debugpy → VS Code bridge → HTTP: None locals, rotation, step, res
         await server.queue;
         const insertion = await getState();
         assert.ok(!insertion.nodes.some(node => node.names.includes('current_node')));
-        assert.equal(insertion.root_is_none, emptyTree);
+        assert.equal(insertion.root_is_nil, emptyTree);
+        assert.ok(insertion.nil_address);
+        assert.ok(!insertion.nodes.some(node => node.address === insertion.nil_address));
         if (emptyTree) {
           assert.ok(insertion.nil_names.includes('current_node'));
         } else {

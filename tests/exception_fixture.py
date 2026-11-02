@@ -3,12 +3,12 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from red_black_trees import Node, Tree
+from red_black_trees import Node, Tree, insert
 from visualizer.runtime import install_tracking, register_tree
 
 install_tracking(Node)
 tree = Tree()
 register_tree(tree)
 node = alias = Node(42)
-tree.root = node
+insert(tree, node)
 raise RuntimeError('Intentional visualizer test exception')

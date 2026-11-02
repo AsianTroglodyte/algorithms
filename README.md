@@ -3,6 +3,29 @@
 Python red-black tree implementation and a browser companion for stepping
 through its actual pointer state from Emacs or VS Code.
 
+## Tree representation
+
+Each `Tree` owns one black sentinel, `tree.nil`, following CLRS. An empty
+tree has `tree.root is tree.nil`. In an inserted node, every missing child
+points to that same sentinel, and the root's parent is also `tree.nil`.
+`Node(key)` creates an unlinked node; `insert(tree, node)` installs its NIL
+children and parent before insertion fix-up.
+
+Insertion fix-up therefore needs only:
+
+```python
+while fix_node.parent.color == Color.RED:
+```
+
+The root's parent is black, so reaching the root ends the loop. Uncle and
+sibling colors can also be read directly. Deletion uses the CLRS root/black
+loop condition and updates NIL's parent when it replaces a subtree; NIL's
+left and right links continue to point to itself. The sentinel is shared
+within one tree. Separate trees have separate sentinels.
+
+The helpers use explicit tree arguments, including `tree_minimum(tree, node)`.
+Deleted nodes retain NIL links so a live reference can be inspected separately.
+
 ## Launch from VS Code
 
 Requires Python 3.10+, VS Code 1.85+, the Microsoft **Python Debugger**
@@ -106,8 +129,9 @@ configuration are made by this project.
 - Drag the background to pan; scroll to zoom around the pointer.
 - **Fit to view** explicitly fits all known nodes. Camera position and scale
   persist across pauses and NIL toggles; updates never auto-fit.
-- **Show NIL leaves** displays black placeholders for actual `None` children.
-- During insertion, `current_node = None` labels the left or right **NIL** child
+- **Show NIL leaves** displays black placeholders for sentinel children. Every
+  placeholder represents the same `tree.nil` object; hover to see its address.
+- During insertion, `current_node is tree.nil` labels the left or right **NIL** child
   of `parent_of_new_node` selected by the new node's key. The labeled NIL and its
   child edge remain visible with NIL leaves hidden.
 - Node fill and RED/BLACK labels show the actual color. `#` labels are stable
@@ -151,7 +175,7 @@ retain their normal meaning.
 The server listens only on `127.0.0.1`, uses an OS-assigned port, and gives each
 launch an unpredictable URL path. It remains available after Python exits.
 There is no external service, CDN, browser debugger UI, or operation-entry UI.
-The operation functions in `red_black_trees.py` are unchanged.
+Node tracking does not modify the tree operation functions.
 
 ## Verification and limitations
 
@@ -184,7 +208,7 @@ without invoking arbitrary user-defined `__repr__` code.
 Run the core checks from the repository root:
 
 ```sh
-.venv/bin/python -m unittest test_visualizer test_time_complexity -v
+.venv/bin/python -m unittest test_red_black_trees test_visualizer test_time_complexity -v
 .venv/bin/python tests/debug_adapter_smoke.py
 emacs --batch -Q -l tests/emacs_smoke.el
 node --test tests/vscode_bridge.test.js tests/vscode_extension.test.js
@@ -214,4 +238,6 @@ package directories on Emacs's load path. The optional
 `tests/browser_smoke.py` needs Playwright and its Chromium installation in your
 test environment; `RB_TEST_CHROMIUM` can select an existing Chromium executable.
 It checks rendering, NIL leaves, camera persistence, malformed graphs, and
-status transitions, and writes a preview to `/tmp/rb-visualizer-preview.png`.
+status transitions, including snapshots from the actual sentinel implementation.
+It writes previews to `/tmp/rb-visualizer-preview.png` and
+`/tmp/rb-visualizer-sentinel.png`.

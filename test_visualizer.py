@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 import weakref
 
-from red_black_trees import Color, Node, Tree, insert, left_rotate
+from red_black_trees import Color, Node, Tree, delete, insert, left_rotate
 from visualizer import runtime
 from visualizer.server import create_server
 
@@ -49,45 +49,45 @@ class SnapshotTests(unittest.TestCase):
         for expected in ('Cycle', 'Shared child', "Child's parent", 'does not list'):
             self.assertIn(expected, warnings)
 
-    def test_none_aliases_follow_the_stopped_frame_values(self):
+    def test_nil_aliases_follow_the_stopped_frame_values(self):
         node = Node(20)
-        self.tree.root = node
-        state = runtime.snapshot({'current_node': node, 'parent_of_new_node': None})
+        insert(self.tree, node)
+        state = runtime.snapshot({'current_node': node, 'parent_of_new_node': self.tree.nil})
         self.assertEqual(state['nodes'][0]['names'], ['current_node'])
         self.assertEqual(state['nil_names'], ['parent_of_new_node'])
-        self.assertFalse(state['root_is_none'])
+        self.assertFalse(state['root_is_nil'])
 
-        state = runtime.snapshot({'current_node': None, 'alias': None, 'other': 0})
+        state = runtime.snapshot({'current_node': self.tree.nil, 'alias': self.tree.nil, 'other': None})
         self.assertEqual(state['nil_names'], ['alias', 'current_node'])
         self.assertEqual(state['nodes'][0]['names'], [])
         self.assertEqual(state['nodes'][0]['nil_children'], ['left', 'right'])
         self.assertEqual(runtime.snapshot({})['nil_names'], [])
 
-        self.tree.root = None
-        self.assertTrue(runtime.snapshot({'current_node': None})['root_is_none'])
+        self.tree.root = self.tree.nil
+        self.assertTrue(runtime.snapshot({'current_node': self.tree.nil})['root_is_nil'])
         self.tree.root = 'invalid root'
-        self.assertFalse(runtime.snapshot({})['root_is_none'])
+        self.assertFalse(runtime.snapshot({})['root_is_nil'])
 
-    def test_insertion_none_label_selects_the_actual_empty_child(self):
+    def test_insertion_nil_label_selects_the_actual_empty_child(self):
         parent = Node(20)
-        self.tree.root = parent
+        insert(self.tree, parent)
         for key, side in ((10, 'left'), (30, 'right'), (20, 'right')):
             with self.subTest(key=key):
                 new_node = Node(key)
-                state = runtime.snapshot({'current_node': None, 'new_node': new_node,
-                                          'parent_of_new_node': parent, 'other': None})
+                state = runtime.snapshot({'current_node': self.tree.nil, 'new_node': new_node,
+                                          'parent_of_new_node': parent, 'other': self.tree.nil})
                 record = next(node for node in state['nodes'] if node['id'] == state['root'])
                 self.assertEqual(record['nil_labels'], {side: ['current_node']})
                 self.assertEqual(state['nil_names'], ['other'])
                 self.assertIn(side, record['nil_children'])
                 self.assertEqual(record['names'], ['parent_of_new_node'])
 
-        # Once the slot is occupied, current_node still being None must not
+        # Once the slot is occupied, current_node still being NIL must not
         # produce a NIL child at that position.
         new_node = Node(10)
         parent.left = new_node
         new_node.parent = parent
-        state = runtime.snapshot({'current_node': None, 'new_node': new_node,
+        state = runtime.snapshot({'current_node': self.tree.nil, 'new_node': new_node,
                                   'parent_of_new_node': parent})
         record = next(node for node in state['nodes'] if node['id'] == state['root'])
         self.assertEqual(record['nil_labels'], {})
@@ -100,8 +100,8 @@ class SnapshotTests(unittest.TestCase):
                 raise AssertionError('Snapshot must not compare custom keys')
 
         parent, new_node = Node(20), Node(CustomKey())
-        self.tree.root = parent
-        state = runtime.snapshot({'current_node': None, 'new_node': new_node,
+        insert(self.tree, parent)
+        state = runtime.snapshot({'current_node': self.tree.nil, 'new_node': new_node,
                                   'parent_of_new_node': parent})
         self.assertEqual(state['nil_names'], ['current_node'])
         self.assertTrue(all(not node['nil_labels'] for node in state['nodes']))
@@ -121,6 +121,41 @@ class SnapshotTests(unittest.TestCase):
         runtime.track_existing(partial)
         partial.left = 'bad pointer'
         self.assertIn('left is not a Node', '\n'.join(runtime.snapshot({})['warnings']))
+
+    def test_shared_sentinel_is_excluded_from_nodes_and_pointer_warnings(self):
+        state = runtime.snapshot({})
+        self.assertEqual(state['nodes'], [])
+        self.assertEqual(state['edges'], [])
+        self.assertEqual(state['warnings'], [])
+        self.assertTrue(state['root_is_nil'])
+        self.assertEqual(state['nil_address'], hex(id(self.tree.nil)))
+        for key in (20, 10, 30, 5):
+            insert(self.tree, Node(key))
+        state = runtime.snapshot({})
+        self.assertEqual(len(state['nodes']), 4)
+        self.assertEqual(len(state['edges']), 3)
+        self.assertEqual(state['warnings'], [])
+        self.assertNotIn(state['nil_address'], [node['address'] for node in state['nodes']])
+        root = next(node for node in state['nodes'] if node['id'] == state['root'])
+        self.assertTrue(root['parent_is_nil'])
+
+    def test_deleted_node_and_nil_parent_do_not_create_false_edges_or_retain_it(self):
+        nodes = [Node(key) for key in (20, 10, 30, 5)]
+        for node in nodes:
+            insert(self.tree, node)
+        removed = nodes.pop(2)  # Removing this black leaf needs NIL's parent.
+        delete(self.tree, removed)
+        state = runtime.snapshot({'removed': removed, 'fix_node': self.tree.nil})
+        self.assertEqual(state['warnings'], [])
+        record = next(node for node in state['nodes'] if node['names'] == ['removed'])
+        self.assertTrue(record['detached'])
+        self.assertEqual(record['nil_children'], ['left', 'right'])
+        self.assertIsNone(record['parent'])
+        self.assertTrue(record['parent_is_nil'])
+        reference = weakref.ref(removed)
+        del removed
+        gc.collect()
+        self.assertIsNone(reference())
 
     def test_registration_is_weak_and_single(self):
         with self.assertRaises(RuntimeError):

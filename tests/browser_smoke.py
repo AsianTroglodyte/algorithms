@@ -11,13 +11,15 @@ from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from visualizer.server import create_server
+from visualizer import runtime
+from red_black_trees import Node, Tree, delete, insert
 
 
 def fixture(children, detached=()):
     """Wire snapshots keep browser checks independent of algorithm edits."""
     parents = {target: source for source, links in children.items() for target in links if target is not None}
     return {
-        'status': 'paused', 'root': '20', 'warnings': [], 'nil_names': [], 'root_is_none': False,
+        'status': 'paused', 'root': '20', 'warnings': [], 'nil_names': [], 'root_is_nil': False, 'nil_address': None,
         'nodes': [dict(id=key, key=key, address='0x'+key, parent=parents.get(key),
                        color='black' if key == '20' else 'red', names=['root'] if key == '20' else [],
                        detached=key in detached, warnings=[],
@@ -202,7 +204,7 @@ def main():
             page.screenshot(path='/tmp/rb-visualizer-insertion-nil.png')
 
             empty = fixture({})
-            empty.update(root=None, root_is_none=True, nil_names=['current_node'])
+            empty.update(root=None, root_is_nil=True, nil_names=['current_node'])
             publish(empty)
             page.wait_for_function("() => document.querySelectorAll('.node').length === 0")
             assert page.locator('#viewport > *').count() == 0
@@ -243,13 +245,66 @@ def main():
             assert page.locator('#viewport').get_attribute('transform') == before
             assert page.locator('.edge.warning').count() > 0
             page.screenshot(path='/tmp/rb-visualizer-preview.png')
+
+            # Reproduce the reported screenshot with actual Python snapshots:
+            # the shared black sentinel must never become a cyclic live node.
+            runtime.install_tracking(Node)
+            tree = Tree()
+            runtime.register_tree(tree)
+            first, second = Node(30), Node(20)
+            insert(tree, first)
+            insert(tree, second)
+            actual = runtime.snapshot({'first': first, 'second': second})
+            assert actual['warnings'] == [], actual
+            assert len(actual['nodes']) == 2
+            publish(actual)
+            page.wait_for_function("() => document.querySelectorAll('.node').length === 2")
+            assert page.locator('.node.warning').count() == 0
+            assert page.locator('.edge.warning').count() == 0
+            assert page.locator('#warnings').is_hidden()
+            assert page.locator('.node .key').all_text_contents() == ['30', '20']
+            assert page.locator('.node[data-id="' + actual['root'] + '"] > title').text_content().splitlines()[2] == 'parent: NIL'
+            page.locator('#nil').check()
+            page.wait_for_function("() => document.querySelectorAll('.nil').length === 3")
+            nil_titles = page.locator('.nil > title').all_text_contents()
+            assert all(title == f"Shared NIL sentinel · {actual['nil_address']}" for title in nil_titles)
+            assert page.locator('.nil[data-id="nil:locals"]').count() == 0
+            page.locator('#fit').click()
+            page.screenshot(path='/tmp/rb-visualizer-sentinel.png')
+
+            third = Node(10)
+            actual = runtime.snapshot({'current_node': tree.nil, 'parent_of_new_node': second,
+                                       'new_node': third})
+            parent = next(node for node in actual['nodes'] if node['names'] == ['parent_of_new_node'])
+            assert parent['nil_labels'] == {'left': ['current_node']}
+            publish(actual)
+            page.wait_for_function('''id => document.querySelector('.named-nil')?.getAttribute('data-id') === id''',
+                                   arg=f"{parent['id']}:nil:left")
+            page.locator('#nil').uncheck()
+            page.wait_for_function("() => document.querySelectorAll('.nil').length === 1")
+            assert page.locator('.named-nil .names').all_text_contents() == ['current_node']
+            assert page.locator('.edge.nil-edge').count() == 1
+            assert page.locator('.node.warning').count() == 0
+
+            insert(tree, third)
+            delete(tree, second)
+            actual = runtime.snapshot({'removed': second})
+            assert actual['warnings'] == [], actual
+            previous_revision = page.locator('#canvas').get_attribute('data-revision')
+            publish(actual)
+            page.wait_for_function("revision => document.querySelector('#canvas').dataset.revision !== revision",
+                                   arg=previous_revision)
+            assert page.locator('.node').count() == 3  # Includes the live detached node.
+            assert page.locator('.node.warning').count() == 0
+            assert page.locator('.edge.warning').count() == 0
+            assert page.locator('.named-nil').count() == 0
             publish({'status': 'running'})
             page.wait_for_function("() => document.querySelector('#status').textContent === 'Running'")
             publish({'status': 'ended'})
             page.wait_for_function("() => document.querySelector('#status').textContent === 'Ended'")
             assert not errors, errors
             browser.close()
-            print('PASS: external alias lists, NIL child labels, no standalone NIL, ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
+            print('PASS: actual shared-sentinel snapshots, external alias lists, NIL child labels, no standalone NIL, ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
     finally:
         server.shutdown()
         server.server_close()

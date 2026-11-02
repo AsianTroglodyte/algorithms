@@ -74,7 +74,7 @@ async function render() {
       if (!showNil && !node.referenced) continue;
       const width = node.bodyWidth ?? node.width, height = node.bodyHeight ?? node.height;
       const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${node.referenced ? ' named-nil' : ''}`, 'data-id': node.id});
-      g.append(el('title', {}, node.referenced ? 'Python None (NIL)' : 'Empty child (NIL)'));
+      g.append(el('title', {}, `Shared NIL sentinel${snapshot.nil_address ? ' · ' + snapshot.nil_address : ''}`));
       g.append(el('rect', {width, height, rx: 5}), el('text', {x: width / 2, y: 16}, 'NIL'));
       appendLabel(g, node);
       content.append(g);
@@ -83,7 +83,7 @@ async function render() {
     const record = node.record;
     const incident = (snapshot.edges ?? []).some(edge => (edge.source === record.id || edge.target === record.id) && edge.warnings.length);
     const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `node ${record.color} ${record.warnings.length || incident ? 'warning' : ''}`, 'data-id': record.id});
-    g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : 'None'}\n${record.warnings.join('\n')}`));
+    g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : record.parent_is_nil ? 'NIL' : 'None'}\n${record.warnings.join('\n')}`));
     g.append(el('rect', {class: 'node-body', width: node.bodyWidth, height: node.bodyHeight, rx: 12}));
     appendLabel(g, node, record.id === snapshot.root);
     g.append(

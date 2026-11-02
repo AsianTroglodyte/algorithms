@@ -36,11 +36,11 @@ def insertion_orders(size):
     }
 
 
-def tree_height(node):
+def tree_height(tree, node):
     """Return tree height measured in nodes; an empty tree has height zero."""
-    if node is None:
+    if node is tree.nil:
         return 0
-    return 1 + max(tree_height(node.left), tree_height(node.right))
+    return 1 + max(tree_height(tree, node.left), tree_height(tree, node.right))
 
 
 def measure_insertions(values):
@@ -53,11 +53,11 @@ def measure_insertions(values):
         insert(tree, Node(CountedKey(value)))
 
     elapsed = time.perf_counter() - start
-    return elapsed, CountedKey.comparisons, tree_height(tree.root)
+    return elapsed, CountedKey.comparisons, tree_height(tree, tree.root)
 
 
 def measure_deletions(values):
-    """Build and empty a tree, returning deletion time and the final root."""
+    """Build and empty a tree, returning deletion time and the empty tree."""
     tree = Tree()
     nodes = [Node(CountedKey(value)) for value in values]
 
@@ -69,7 +69,7 @@ def measure_deletions(values):
         delete(tree, node)
     elapsed = time.perf_counter() - start
 
-    return elapsed, tree.root
+    return elapsed, tree
 
 
 class RedBlackTreeComplexityTests(unittest.TestCase):
@@ -106,8 +106,8 @@ class RedBlackTreeComplexityTests(unittest.TestCase):
         for size in TEST_SIZES:
             for case_name, values in insertion_orders(size).items():
                 with self.subTest(size=size, case=case_name):
-                    _, root = measure_deletions(values)
-                    self.assertIsNone(root)
+                    _, tree = measure_deletions(values)
+                    self.assertIs(tree.root, tree.nil)
 
 
 def measure_single_insertion(size, trials=200):
@@ -233,8 +233,8 @@ def print_benchmark():
     for size in TEST_SIZES:
         values = insertion_orders(size)["random"]
         insert_elapsed, comparisons, _ = measure_insertions(values)
-        delete_elapsed, root = measure_deletions(values)
-        assert root is None
+        delete_elapsed, tree = measure_deletions(values)
+        assert tree.root is tree.nil
         normalized = comparisons / (size * math.log2(size))
         print(
             f"{'random':<12} {size:>7} {insert_elapsed * 1000:>12.3f} "
