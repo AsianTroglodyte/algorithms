@@ -13,6 +13,18 @@ function el(tag, attrs = {}, text) {
   return node;
 }
 function applyTransform() { viewport.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.k})`); }
+function edgePath(points, rounded) {
+  if (!rounded || points.length < 3) return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; ++i) {
+    const a = points[i - 1], b = points[i], c = points[i + 1];
+    const before = Math.hypot(b.x - a.x, b.y - a.y), after = Math.hypot(c.x - b.x, c.y - b.y);
+    const radius = Math.min(10, before / 2, after / 2);
+    path += ` L ${b.x + (a.x - b.x) * radius / before} ${b.y + (a.y - b.y) * radius / before}`;
+    path += ` Q ${b.x} ${b.y} ${b.x + (c.x - b.x) * radius / after} ${b.y + (c.y - b.y) * radius / after}`;
+  }
+  return path + ` L ${points.at(-1).x} ${points.at(-1).y}`;
+}
 function appendLabel(g, node, isRoot = false) {
   const label = node.label;
   if (!label) return;
@@ -38,9 +50,13 @@ let layoutError = '';
 async function render() {
   const generation = ++renderGeneration;
   const snapshot = data;
+  const showNil = document.querySelector('#nil').checked;
+  const sharedNil = showNil && document.querySelector('#nil-view').value === 'shared';
   let geometry;
   try {
-    geometry = await layout(snapshot.nodes ?? [], snapshot.edges ?? [], snapshot.root);
+    geometry = await layout(snapshot.nodes ?? [], snapshot.edges ?? [], snapshot.root, {
+      sharedNil, rootIsNil: snapshot.root_is_nil, nilNames: snapshot.nil_names,
+    });
   } catch (error) {
     if (generation === renderGeneration) {
       layoutError = `Unable to lay out pointer graph: ${error.message}`;
@@ -51,7 +67,6 @@ async function render() {
   // A newer pause or NIL toggle can overtake this asynchronous layout.
   if (generation !== renderGeneration) return;
   layoutError = '';
-  const showNil = document.querySelector('#nil').checked;
   const content = document.createDocumentFragment();
   for (const group of geometry.groups) {
     const height = showNil ? group.height : Math.max(80, ...geometry.nodes.filter(node => node.group === group.id && (!node.nil || node.referenced)).map(node => node.y + node.height - group.y + 24));
@@ -62,21 +77,29 @@ async function render() {
     if (edge.nil && !showNil && !edge.referenced) continue;
     const record = edge.record;
     for (const points of edge.sections) {
-      const path = points.map((point, i) => `${i ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
-      const line = el('path', {d: path, class: `edge${edge.nil ? ' nil-edge' : ''} ${record?.warnings.length ? 'warning' : ''}`});
-      line.append(el('title', {}, record?.warnings.join('; ') || `${record?.side ?? 'NIL'} child`));
+      const path = edgePath(points, edge.rounded);
+      const line = el('path', {
+        d: path, class: `edge${edge.nil ? ' nil-edge' : ''}${edge.parent ? ' parent-edge' : ''} ${record?.warnings.length ? 'warning' : ''}`,
+        ...(edge.pointer ? {'data-source': edge.sourceNode, 'data-target': edge.targetNode, 'data-pointer': edge.pointer} : {}),
+      });
+      line.append(el('title', {}, edge.title || record?.warnings.join('; ') || `${record?.side ?? 'NIL'} child`));
       content.append(line);
     }
-    for (const label of edge.labels) content.append(el('text', {x: label.x + label.width / 2, y: label.y + 11, class: 'edge-label', 'text-anchor': 'middle'}, label.text));
+    for (const label of edge.labels) content.append(el('text', {x: label.x + label.width / 2, y: label.y + 11, class: `edge-label${edge.parent ? ' parent-label' : ''}`, 'text-anchor': 'middle'}, label.text));
   }
   for (const node of geometry.nodes) {
     if (node.nil) {
       if (!showNil && !node.referenced) continue;
       const width = node.bodyWidth ?? node.width, height = node.bodyHeight ?? node.height;
-      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${node.referenced ? ' named-nil' : ''}`, 'data-id': node.id});
+      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${node.label ? ' named-nil' : ''}${node.shared ? ' shared-nil' : ''}`, 'data-id': node.id});
       g.append(el('title', {}, `Shared NIL sentinel${snapshot.nil_address ? ' · ' + snapshot.nil_address : ''}`));
-      g.append(el('rect', {width, height, rx: 5}), el('text', {x: width / 2, y: 16}, 'NIL'));
-      appendLabel(g, node);
+      g.append(el('rect', {width, height, rx: node.shared ? 12 : 5}));
+      if (node.shared) {
+        g.append(el('text', {class: 'nil-name', x: width / 2, y: 27}, 'NIL'), el('text', {class: 'nil-color', x: width / 2, y: 47}, 'BLACK'));
+      } else {
+        g.append(el('text', {x: width / 2, y: 16}, 'NIL'));
+      }
+      appendLabel(g, node, node.root);
       content.append(g);
       continue;
     }
@@ -103,16 +126,22 @@ async function render() {
   for (const warning of snapshot.warnings ?? []) { const p = document.createElement('p'); p.textContent = '⚠ '+warning; warnings.append(p); }
   warnings.hidden = !snapshot.warnings?.length;
   svg.dataset.revision = snapshot.revision ?? '';
+  svg.dataset.nilView = sharedNil ? 'shared' : 'leaves';
+  document.querySelector('#legend').textContent = `Solid edges: child pointers${sharedNil ? ' · Blue: parent → NIL' : ''} · Dashed amber: inconsistency · Node fill: actual color`;
 }
 function fit() {
-  if (!data.nodes?.length) return;
+  if (!bounds.width || !bounds.height) return;
   const width = svg.clientWidth, height = svg.clientHeight;
   const k = Math.min(2, Math.max(.05, Math.min((width-60)/(bounds.width+60), (height-80)/(bounds.height+60))));
   transform = {k, x: width/2-(bounds.x+bounds.width/2)*k, y: height/2-(bounds.y+bounds.height/2)*k};
   applyTransform();
 }
 document.querySelector('#fit').addEventListener('click', fit);
-document.querySelector('#nil').addEventListener('change', render);
+document.querySelector('#nil').addEventListener('change', () => {
+  document.querySelector('#nil-view-control').hidden = !document.querySelector('#nil').checked;
+  render();
+});
+document.querySelector('#nil-view').addEventListener('change', render);
 svg.addEventListener('wheel', event => {
   event.preventDefault();
   const rect = svg.getBoundingClientRect(), x = event.clientX-rect.left, y = event.clientY-rect.top;

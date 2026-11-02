@@ -131,6 +131,13 @@ configuration are made by this project.
   persist across pauses and NIL toggles; updates never auto-fit.
 - **Show NIL leaves** displays black placeholders for sentinel children. Every
   placeholder represents the same `tree.nil` object; hover to see its address.
+- With NIL leaves enabled, choose **NIL view → Shared sentinel** to draw one
+  black NIL object. All NIL child pointers converge on it, and blue arrows
+  labeled **parent** show NIL parent pointers, including the root's parent.
+  **Leaf positions** restores the usual diagram. The shared view updates with
+  each pause and keeps variable aliases attached to the sentinel. Both views
+  use identical tree positions and child edges; only NIL arrows are rerouted
+  around the fixed tree to converge below it.
 - During insertion, `current_node is tree.nil` labels the left or right **NIL** child
   of `parent_of_new_node` selected by the new node's key. The labeled NIL and its
   child edge remain visible with NIL leaves hidden.
@@ -141,7 +148,8 @@ configuration are made by this project.
   stack frame in your editor does not change the browser labels.
 - Child edges are labeled L/R. Dashed amber edges, warning outlines, tooltips,
   and a warning list identify parent mismatches, shared children, and cycles.
-  Parent pointers appear in tooltips and warnings rather than as ordinary edges.
+  Parent pointers appear in tooltips and warnings; the shared-sentinel view also
+  draws parent pointers that reference NIL.
 - Nodes unreachable by child links from `tree.root` appear separately under
   **Detached · still live**. Inconsistent states are displayed as they stand.
 - While Python runs, the last paused snapshot remains visible and is explicitly
@@ -198,10 +206,11 @@ Debuggers can themselves retain references through variable inspection or
 exception frames. Weak tracking does not prevent collection, but cannot force
 collection while the debugger or program still owns a node. Multiple program
 threads mutating the tree while only one is suspended are outside this demo's
-scope. Rendering uses ELK's layered layout with orthogonal edge routing, ordered
-left/right attachment points, and reserved NIL slots. Detached nodes are grouped
-separately; malformed graphs retain their actual edges, including cycles and
-shared children. It reports pointer inconsistencies, not every red-black
+scope. Rendering places ordered trees with fixed left/right child positions and
+reserved NIL slots. Shared-sentinel arrows route around those fixed nodes and
+their labels. ELK handles cycles, shared children, and cross-group pointers;
+malformed graphs retain their actual edges. Detached nodes are grouped
+separately. It reports pointer inconsistencies, not every red-black
 invariant violation. Nonprimitive keys display their type
 without invoking arbitrary user-defined `__repr__` code.
 

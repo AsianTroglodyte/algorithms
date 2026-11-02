@@ -3,10 +3,18 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Red-black tree · Debug companion</title><link rel="stylesheet" href="style.css"></head>
 <body>
   <header><div><span class="eyebrow">DEBUG COMPANION</span><h1>Red-black tree</h1></div><span id="status" role="status">Waiting</span></header>
-  <nav aria-label="Visualization controls"><label><input id="nil" type="checkbox"> Show NIL leaves</label><button id="fit">Fit to view</button><span>Drag to pan · Scroll to zoom</span></nav>
+  <nav aria-label="Visualization controls">
+    <div class="nil-controls">
+      <label><input id="nil" type="checkbox"> Show NIL leaves</label>
+      <label id="nil-view-control" hidden>NIL view
+        <select id="nil-view"><option value="leaves">Leaf positions</option><option value="shared">Shared sentinel</option></select>
+      </label>
+    </div>
+    <button id="fit">Fit to view</button><span>Drag to pan · Scroll to zoom</span>
+  </nav>
   <main><div id="notice" role="status">Waiting for a registered tree</div><svg id="canvas" aria-label="Tree pointer graph" tabindex="0"><defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs><g id="viewport"></g></svg></main>
   <aside id="warnings" aria-label="Pointer warnings" hidden></aside>
-  <footer><span id="counts">No snapshot yet</span><span>Solid edges: child pointers · Dashed amber: inconsistency · Node fill: actual color</span></footer>
+  <footer><span id="counts">No snapshot yet</span><span id="legend">Solid edges: child pointers · Dashed amber: inconsistency · Node fill: actual color</span></footer>
   <script src="vendor/elk.bundled.js"></script>
   <script type="module" src="app.js"></script>
 </body></html>
