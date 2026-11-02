@@ -17,7 +17,7 @@ def fixture(children, detached=()):
     """Wire snapshots keep browser checks independent of algorithm edits."""
     parents = {target: source for source, links in children.items() for target in links if target is not None}
     return {
-        'status': 'paused', 'root': '20', 'warnings': [],
+        'status': 'paused', 'root': '20', 'warnings': [], 'nil_names': [], 'root_is_none': False,
         'nodes': [dict(id=key, key=key, address='0x'+key, parent=parents.get(key),
                        color='black' if key == '20' else 'red', names=['root'] if key == '20' else [],
                        detached=key in detached, warnings=[],
@@ -35,12 +35,21 @@ def assert_clear_routes(geometry):
             for a, b in zip(points, points[1:]):
                 assert a['x'] == b['x'] or a['y'] == b['y'], (a, b)
                 for node in geometry['nodes']:
-                    left, top = node['x'] + .1, node['y'] + .1
-                    right, bottom = node['x'] + node['width'] - .1, node['y'] + node['height'] - .1
-                    hit = (left < a['x'] < right and max(a['y'], b['y']) > top and min(a['y'], b['y']) < bottom
-                           if a['x'] == b['x'] else
-                           top < a['y'] < bottom and max(a['x'], b['x']) > left and min(a['x'], b['x']) < right)
-                    assert not hit, (edge['id'], node['id'], a, b)
+                    # Tall alias lists reserve extra vertical space while the
+                    # body keeps its size. Test both visible rectangles.
+                    regions = [(node['x'], node['y'], node.get('bodyWidth', node['width']),
+                                node.get('bodyHeight', node['height']))]
+                    if node.get('label'):
+                        label = node['label']
+                        regions.append((node['x'] + label['x'], node['y'] + label['y'],
+                                        label['width'], label['height']))
+                    for x, y, width, height in regions:
+                        left, top = x + .1, y + .1
+                        right, bottom = x + width - .1, y + height - .1
+                        hit = (left < a['x'] < right and max(a['y'], b['y']) > top and min(a['y'], b['y']) < bottom
+                               if a['x'] == b['x'] else
+                               top < a['y'] < bottom and max(a['x'], b['x']) > left and min(a['x'], b['x']) < right)
+                        assert not hit, (edge['id'], node['id'], a, b)
 
 
 def main():
@@ -78,15 +87,19 @@ def main():
             assert page.locator('.node > .names').count() == 0
             assert page.locator('.node-label').evaluate_all('''labels => labels.every(label => {
                 const body = label.parentNode.querySelector('.node-body').getBBox();
-                const text = label.querySelector('.names').getBBox();
+                const box = label.querySelector('rect').getBBox();
+                const rows = [...label.querySelectorAll('.names')].map(row => row.getBBox());
                 const position = label.transform.baseVal.consolidate().matrix;
                 const connector = label.parentNode.querySelector('.label-connector');
-                return position.e > body.x + body.width && text.x >= 0 &&
-                    text.x + text.width <= label.querySelector('rect').width.baseVal.value &&
+                return position.e > body.x + body.width && rows.every((row, index) =>
+                    row.x >= 0 && row.x + row.width <= box.width &&
+                    row.y >= 0 && row.y + row.height <= box.height &&
+                    (index === 0 || row.y > rows[index - 1].y + rows[index - 1].height)) &&
                     Number(connector.getAttribute('x1')) === body.x + body.width &&
                     Number(connector.getAttribute('x2')) === position.e &&
-                    Number(connector.getAttribute('y1')) === position.f + 14;
+                    Number(connector.getAttribute('y1')) === body.height / 2;
             })''')
+            assert page.locator('.node[data-id="20"] .names').all_text_contents() == ['ROOT', 'tree_root', 'root_alias']
             page.locator('#fit').click()
             page.screenshot(path='/tmp/rb-visualizer-default.png')
             positions = page.locator('.node').evaluate_all('(nodes) => nodes.map(node => node.getAttribute("transform"))')
@@ -97,11 +110,15 @@ def main():
             assert page.locator('.node').evaluate_all('(nodes) => nodes.map(node => node.getAttribute("transform"))') == positions
             # Asymmetric trees, one-child chains and long aliases must preserve
             # pointer sides and keep every routed segment out of other nodes.
-            for sample in (state, fixture({'20': (None, None)}),
+            many_aliases = json.loads(json.dumps(state))
+            for node in many_aliases['nodes']:
+                node['names'] = [f'alias_{i}' for i in range(10)]
+            for sample in (state, fixture({'20': (None, None)}), many_aliases,
                            fixture({'20': ('10', '40'), '10': (None, '15'),
                                            '15': ('12', None), '12': (None, None),
                                            '40': (None, '50'), '50': (None, None)})):
-                sample['nodes'][0]['names'] = ['root', 'long_local_variable_alias']
+                if sample is not many_aliases:
+                    sample['nodes'][0]['names'] = ['root', 'long_local_variable_alias']
                 geometry = page.evaluate('''async state => {
                     const {layout} = await import('./layout.js');
                     return await layout(state.nodes, state.edges, state.root);
@@ -116,6 +133,90 @@ def main():
                 groups = {g['id']: g for g in geometry['groups']}
                 if 'detached' in groups:
                     assert groups['detached']['x'] > groups['attached']['x'] + groups['attached']['width']
+            publish(many_aliases)
+            page.wait_for_function("() => document.querySelectorAll('.node[data-id=\"20\"] .names').length === 11")
+            assert page.locator('.node[data-id="20"] .names').all_text_contents() == ['ROOT'] + [f'alias_{i}' for i in range(10)]
+            assert page.locator('.node-label').evaluate_all('''labels => labels.every(label => {
+                const box = label.querySelector('rect').getBBox();
+                return [...label.querySelectorAll('.names')].every(row => {
+                    const text = row.getBBox();
+                    return text.y >= 0 && text.y + text.height <= box.height;
+                });
+            })''')
+            assert page.locator('.node-body').evaluate_all('bodies => bodies.every(body => body.getBBox().height === 84)')
+            publish(state)
+            page.wait_for_function("() => document.querySelectorAll('.node[data-id=\"20\"] .names').length === 3")
+            # None-valued locals do not create a standalone NIL marker.
+            none_state = json.loads(json.dumps(state))
+            none_state['nil_names'] = ['alias', 'current_node']
+            previous_revision = page.locator('#canvas').get_attribute('data-revision')
+            publish(none_state)
+            page.wait_for_function("revision => document.querySelector('#canvas').dataset.revision !== revision",
+                                   arg=previous_revision)
+            page.locator('#nil').uncheck()
+            page.wait_for_function("() => document.querySelectorAll('.nil').length === 0")
+            assert 'NIL · NONE' not in page.locator('#viewport').text_content()
+            assert '6 live nodes' in page.locator('#counts').text_content()
+            camera = page.locator('#viewport').get_attribute('transform')
+            page.locator('#nil').check()
+            page.wait_for_function("() => document.querySelectorAll('.nil').length > 0")
+            assert page.locator('.nil[data-id="nil:locals"]').count() == 0
+            assert page.locator('#viewport').get_attribute('transform') == camera
+            page.locator('#nil').uncheck()
+            page.wait_for_function("() => document.querySelectorAll('.nil').length === 0")
+
+            # The insertion cursor belongs to a specific NIL child of its
+            # parent. Both sides must retain the parent edge with leaves hidden.
+            for side in ('left', 'right'):
+                insertion = json.loads(json.dumps(state))
+                insertion['nil_names'] = ['other_none_local']
+                insertion['nodes'][1]['nil_labels'] = {side: ['current_node']}
+                insertion['nodes'][1]['names'] = ['parent_of_new_node']
+                publish(insertion)
+                page.wait_for_function('''id => document.querySelector('.named-nil')?.getAttribute('data-id') === id''',
+                                       arg=f'10:nil:{side}')
+                assert page.locator('.named-nil').count() == 1
+                assert page.locator('.named-nil .names').all_text_contents() == ['current_node']
+                assert page.locator('.edge.nil-edge').count() == 1
+                assert page.locator('.nil[data-id="nil:locals"]').count() == 0
+                geometry = page.evaluate('''async state => {
+                    const {layout} = await import('./layout.js');
+                    return await layout(state.nodes, state.edges, state.root);
+                }''', insertion)
+                assert_clear_routes(geometry)
+                by_id = {node['id']: node for node in geometry['nodes']}
+                parent, child = by_id['10'], by_id[f'10:nil:{side}']
+                parent_x = parent['x'] + parent['bodyWidth'] / 2
+                child_x = child['x'] + child['bodyWidth'] / 2
+                assert child_x < parent_x if side == 'left' else child_x > parent_x
+                assert child['y'] > parent['y'] + parent['bodyHeight']
+                edge = next(edge for edge in geometry['edges'] if edge['id'] == f'10:nil:{side}:edge')
+                assert edge['sections'][-1][-1] == {'x': child_x, 'y': child['y']}
+                cursor_position = page.locator('.named-nil').get_attribute('transform')
+                page.locator('#nil').check()
+                page.wait_for_function("() => document.querySelectorAll('.nil').length > 1")
+                assert page.locator('.named-nil').get_attribute('transform') == cursor_position
+                page.locator('#nil').uncheck()
+                page.wait_for_function("() => document.querySelectorAll('.nil').length === 1")
+            page.locator('#fit').click()
+            page.screenshot(path='/tmp/rb-visualizer-insertion-nil.png')
+
+            empty = fixture({})
+            empty.update(root=None, root_is_none=True, nil_names=['current_node'])
+            publish(empty)
+            page.wait_for_function("() => document.querySelectorAll('.node').length === 0")
+            assert page.locator('#viewport > *').count() == 0
+            camera = page.locator('#viewport').get_attribute('transform')
+            page.locator('#fit').click()
+            assert page.locator('#viewport').get_attribute('transform') == camera
+
+            restored = json.loads(json.dumps(state))
+            restored['nodes'][1]['names'].append('current_node')
+            publish(restored)
+            page.wait_for_function("() => document.querySelector('.node[data-id=\"10\"]')?.textContent.includes('current_node')")
+            assert page.locator('.named-nil').count() == 0
+            publish(state)
+            page.wait_for_function("() => document.querySelectorAll('.node[data-id=\"10\"] .names').length === 1")
             page.locator('#fit').click()
             page.screenshot(path='/tmp/rb-visualizer-layout.png')
             page.mouse.move(450, 450)
@@ -148,7 +249,7 @@ def main():
             page.wait_for_function("() => document.querySelector('#status').textContent === 'Ended'")
             assert not errors, errors
             browser.close()
-            print('PASS: external attached labels, ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
+            print('PASS: external alias lists, NIL child labels, no standalone NIL, ordered tree layout, edge clearance, NIL stability, pan/zoom, malformed graphs, session status')
     finally:
         server.shutdown()
         server.server_close()

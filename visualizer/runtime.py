@@ -59,11 +59,36 @@ def track_existing(node):
     _track(node)
 
 
+def _insertion_nil_slot(frame_locals):
+    """Locate insert's empty child slot using its stopped-frame search context."""
+    if "current_node" not in frame_locals or frame_locals["current_node"] is not None:
+        return None
+    parent = frame_locals.get("parent_of_new_node")
+    new_node = frame_locals.get("new_node")
+    if not isinstance(parent, _node_type) or not isinstance(new_node, _node_type):
+        return None
+    parent_id = _ids.get(parent)
+    if parent_id is None:
+        return None
+    key, parent_key = getattr(new_node, "key", None), getattr(parent, "key", None)
+    # Mirror insert's comparison for primitive keys without invoking user code.
+    primitives = (int, float, str, bool)
+    if type(key) not in primitives or type(parent_key) not in primitives:
+        return None
+    try:
+        side = "left" if key < parent_key else "right"
+    except TypeError:
+        return None
+    if hasattr(parent, side) and getattr(parent, side) is None:
+        return parent_id, side
+    return None
+
+
 def snapshot(frame_locals):
     """Return JSON-safe values only; never retain a frame or strong node reference."""
     tree = _tree() if _tree is not None else None
     if tree is None:
-        return {"status": "waiting", "message": "Waiting for a registered tree", "nodes": [], "edges": [], "warnings": []}
+        return {"status": "waiting", "message": "Waiting for a registered tree", "nodes": [], "edges": [], "warnings": [], "nil_names": [], "root_is_none": False}
     root = getattr(tree, "root", None)
     live = dict(_nodes.items())
     pending = list(live.values())
@@ -82,10 +107,15 @@ def snapshot(frame_locals):
             other = getattr(node, field, None)
             if isinstance(other, _node_type):
                 pending.append(other)
-    names = {}
+    names, nil_names = {}, []
     for name, value in frame_locals.items():
-        if isinstance(value, _node_type) and value in _ids:
+        if value is None:
+            nil_names.append(str(name))
+        elif isinstance(value, _node_type) and value in _ids:
             names.setdefault(_ids[value], []).append(str(name))
+    nil_slot = _insertion_nil_slot(frame_locals)
+    if nil_slot is not None:
+        nil_names.remove("current_node")
     nodes, edges, warnings = [], [], []
     incoming = {}
     for ident, node in live.items():
@@ -97,6 +127,7 @@ def snapshot(frame_locals):
         color = getattr(node, "color", None)
         record["color"] = getattr(color, "value", None)
         record["nil_children"] = [side for side in ("left", "right") if hasattr(node, side) and getattr(node, side) is None]
+        record["nil_labels"] = {nil_slot[1]: ["current_node"]} if nil_slot and nil_slot[0] == ident else {}
         if record["color"] not in ("red", "black"):
             record["color"] = "unknown"
             issues.append("Unknown or uninitialized color")
@@ -161,7 +192,8 @@ def snapshot(frame_locals):
     warnings.extend(f"#{e['source']} {e['side']} → #{e['target']}: {issue}" for e in edges for issue in e["warnings"])
     if root is not None and root_id is None:
         warnings.append("Root is not a tracked Node")
-    return {"status": "paused", "root": root_id, "nodes": nodes, "edges": edges, "warnings": warnings}
+    return {"status": "paused", "root": root_id, "nodes": nodes, "edges": edges, "warnings": warnings,
+            "nil_names": sorted(nil_names), "root_is_none": root is None}
 
 
 def snapshot_wire(frame_locals):

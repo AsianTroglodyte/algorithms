@@ -1,6 +1,15 @@
 // ELK owns geometry; the SVG renderer owns appearance and the camera.
 const elk = new window.ELK();
 const bodyWidth = 100, bodyHeight = 84, labelGap = 16;
+function labelFor(lines, width, height) {
+  if (!lines.length) return null;
+  const labelHeight = lines.length * 18 + 10;
+  return {
+    lines, x: width + labelGap, y: Math.max(0, (height - labelHeight) / 2),
+    width: Math.max(52, Math.min(280, Math.max(...lines.map(line => line.length)) * 7 + 20)),
+    height: labelHeight,
+  };
+}
 const options = {
   'elk.algorithm': 'layered',
   'elk.direction': 'DOWN',
@@ -47,16 +56,13 @@ export async function layout(nodes, edges, root) {
       children: [], edges: [],
     });
     const group = groups.get(id);
-    const heading = [node.id === root ? 'ROOT' : '', node.names.join(', ')].filter(Boolean).join(' · ');
-    const label = heading ? {
-      text: heading, x: bodyWidth + labelGap, y: 28,
-      width: Math.max(52, Math.min(280, heading.length * 7 + 20)), height: 28,
-    } : null;
+    const lines = [...(node.id === root ? ['ROOT'] : []), ...node.names];
+    const label = labelFor(lines, bodyWidth, bodyHeight);
     // Reserve the callout as part of the layout footprint so other nodes and
     // child edges cannot pass through it. Ports still attach to the body.
     const width = label ? label.x + label.width : bodyWidth;
     group.children.push({
-      id: node.id, width, height: bodyHeight, bodyWidth, label, record: node,
+      id: node.id, width, height: Math.max(bodyHeight, label?.height ?? 0), bodyWidth, bodyHeight, label, record: node,
       layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
       ports: [
         {id: `${node.id}:in`, x: bodyWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}},
@@ -70,8 +76,15 @@ export async function layout(nodes, edges, root) {
     // its left/right meaning, and the NIL toggle must not rearrange the tree.
     for (const side of node.nil_children ?? []) {
       const nilId = `${node.id}:nil:${side}`;
-      group.children.push({id: nilId, width: 40, height: 24, nil: true});
-      group.edges.push({id: `${nilId}:edge`, sources: [`${node.id}:${side}`], targets: [nilId], nil: true,
+      const label = labelFor(node.nil_labels?.[side] ?? [], 40, 24);
+      const referenced = Boolean(label);
+      group.children.push({
+        id: nilId, width: label ? label.x + label.width : 40, height: Math.max(24, label?.height ?? 0),
+        bodyWidth: 40, bodyHeight: 24, nil: true, referenced, label,
+        layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
+        ports: [{id: `${nilId}:in`, x: 20, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}}],
+      });
+      group.edges.push({id: `${nilId}:edge`, sources: [`${node.id}:${side}`], targets: [`${nilId}:in`], nil: true, referenced,
         labels: [{text: side === 'left' ? 'L' : 'R', width: 10, height: 14}]});
     }
   }

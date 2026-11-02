@@ -13,6 +13,26 @@ function el(tag, attrs = {}, text) {
   return node;
 }
 function applyTransform() { viewport.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.k})`); }
+function appendLabel(g, node, isRoot = false) {
+  const label = node.label;
+  if (!label) return;
+  const centerY = node.bodyHeight / 2;
+  g.append(el('line', {class: 'label-connector', x1: node.bodyWidth, y1: centerY, x2: label.x, y2: centerY}));
+  const tag = el('g', {class: 'node-label', transform: `translate(${label.x},${label.y})`});
+  const maxNames = Math.floor((label.width - 20) / 7);
+  tag.append(
+    el('title', {}, label.lines.join('\n')),
+    el('rect', {width: label.width, height: label.height, rx: 7}),
+  );
+  label.lines.forEach((line, index) => {
+    const text = line.length > maxNames ? line.slice(0, maxNames - 1) + '…' : line;
+    tag.append(el('text', {
+      class: `names${isRoot && index === 0 ? ' root-label' : ''}`,
+      x: 10, y: 14 + index * 18,
+    }, text));
+  });
+  g.append(tag);
+}
 let renderGeneration = 0;
 let layoutError = '';
 async function render() {
@@ -34,16 +54,16 @@ async function render() {
   const showNil = document.querySelector('#nil').checked;
   const content = document.createDocumentFragment();
   for (const group of geometry.groups) {
-    const height = showNil ? group.height : Math.max(80, ...geometry.nodes.filter(node => node.group === group.id && !node.nil).map(node => node.y + node.height - group.y + 24));
+    const height = showNil ? group.height : Math.max(80, ...geometry.nodes.filter(node => node.group === group.id && (!node.nil || node.referenced)).map(node => node.y + node.height - group.y + 24));
     if (group.id === 'detached') content.append(el('rect', {x: group.x, y: group.y, width: group.width, height, rx: 16, class: 'detached-region'}));
-    content.append(el('text', {x: group.x + 24, y: group.y + 26, class: 'group-label'}, group.id === 'attached' ? 'ROOTED TREE' : 'DETACHED · STILL LIVE'));
+    content.append(el('text', {x: group.x + 24, y: group.y + 26, class: 'group-label'}, {attached: 'ROOTED TREE', detached: 'DETACHED · STILL LIVE'}[group.id]));
   }
   for (const edge of geometry.edges) {
-    if (edge.nil && !showNil) continue;
+    if (edge.nil && !showNil && !edge.referenced) continue;
     const record = edge.record;
     for (const points of edge.sections) {
       const path = points.map((point, i) => `${i ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
-      const line = el('path', {d: path, class: `edge ${record?.warnings.length ? 'warning' : ''}`});
+      const line = el('path', {d: path, class: `edge${edge.nil ? ' nil-edge' : ''} ${record?.warnings.length ? 'warning' : ''}`});
       line.append(el('title', {}, record?.warnings.join('; ') || `${record?.side ?? 'NIL'} child`));
       content.append(line);
     }
@@ -51,9 +71,12 @@ async function render() {
   }
   for (const node of geometry.nodes) {
     if (node.nil) {
-      if (!showNil) continue;
-      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: 'nil'});
-      g.append(el('rect', {width: node.width, height: node.height, rx: 5}), el('text', {x: node.width / 2, y: 16}, 'NIL'));
+      if (!showNil && !node.referenced) continue;
+      const width = node.bodyWidth ?? node.width, height = node.bodyHeight ?? node.height;
+      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${node.referenced ? ' named-nil' : ''}`, 'data-id': node.id});
+      g.append(el('title', {}, node.referenced ? 'Python None (NIL)' : 'Empty child (NIL)'));
+      g.append(el('rect', {width, height, rx: 5}), el('text', {x: width / 2, y: 16}, 'NIL'));
+      appendLabel(g, node);
       content.append(g);
       continue;
     }
@@ -61,21 +84,8 @@ async function render() {
     const incident = (snapshot.edges ?? []).some(edge => (edge.source === record.id || edge.target === record.id) && edge.warnings.length);
     const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `node ${record.color} ${record.warnings.length || incident ? 'warning' : ''}`, 'data-id': record.id});
     g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : 'None'}\n${record.warnings.join('\n')}`));
-    g.append(el('rect', {class: 'node-body', width: node.bodyWidth, height: node.height, rx: 12}));
-    if (node.label) {
-      const label = node.label;
-      const centerY = label.y + label.height / 2;
-      g.append(el('line', {class: 'label-connector', x1: node.bodyWidth, y1: centerY, x2: label.x, y2: centerY}));
-      const tag = el('g', {class: 'node-label', transform: `translate(${label.x},${label.y})`});
-      const maxNames = Math.floor((label.width - 20) / 7);
-      const text = label.text.length > maxNames ? label.text.slice(0, maxNames - 1) + '…' : label.text;
-      tag.append(
-        el('title', {}, label.text),
-        el('rect', {width: label.width, height: label.height, rx: 7}),
-        el('text', {class: 'names', x: 10, y: label.height / 2}, text),
-      );
-      g.append(tag);
-    }
+    g.append(el('rect', {class: 'node-body', width: node.bodyWidth, height: node.bodyHeight, rx: 12}));
+    appendLabel(g, node, record.id === snapshot.root);
     g.append(
       el('text', {class: 'key', x: node.bodyWidth / 2, y: 26}, record.key.length > 9 ? record.key.slice(0, 8) + '…' : record.key),
       el('text', {class: 'color', x: node.bodyWidth / 2, y: 50}, record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),

@@ -107,10 +107,13 @@ configuration are made by this project.
 - **Fit to view** explicitly fits all known nodes. Camera position and scale
   persist across pauses and NIL toggles; updates never auto-fit.
 - **Show NIL leaves** displays black placeholders for actual `None` children.
+- During insertion, `current_node = None` labels the left or right **NIL** child
+  of `parent_of_new_node` selected by the new node's key. The labeled NIL and its
+  child edge remain visible with NIL leaves hidden.
 - Node fill and RED/BLACK labels show the actual color. `#` labels are stable
   session identities; hover for Python object addresses and parent information.
 - Labels attached outside each node name direct local variables referring to it in the
-  frame where execution stopped. Multiple aliases are shown. Selecting a different
+  frame where execution stopped. Multiple aliases appear one per line. Selecting a different
   stack frame in your editor does not change the browser labels.
 - Child edges are labeled L/R. Dashed amber edges, warning outlines, tooltips,
   and a warning list identify parent mismatches, shared children, and cycles.

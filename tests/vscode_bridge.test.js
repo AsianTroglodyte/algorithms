@@ -172,7 +172,7 @@ class Adapter {
   }
 }
 
-test('real debugpy → VS Code bridge → HTTP: rotation, step, restart, exception, end', {timeout: 90000}, async t => {
+test('real debugpy → VS Code bridge → HTTP: None locals, rotation, step, restart, exception, end', {timeout: 90000}, async t => {
   const server = new Companion(PYTHON, ROOT);
   t.after(() => server.stop());
   const url = await server.start();
@@ -180,6 +180,7 @@ test('real debugpy → VS Code bridge → HTTP: rotation, step, restart, excepti
   const fs = require('node:fs');
   const lines = fs.readFileSync(path.join(ROOT, 'red_black_trees.py'), 'utf8').split('\n');
   const rotationLine = lines.findIndex(line => line.trim() === 'rotate_down.parent = rotate_up') + 1;
+  const insertLine = lines.findIndex(line => line.trim() === 'new_node.parent = parent_of_new_node') + 1;
 
   for (const fixture of ['visualizer_demo.py', 'tests/exception_fixture.py']) {
     const adapter = new Adapter();
@@ -196,7 +197,7 @@ test('real debugpy → VS Code bridge → HTTP: rotation, step, restart, excepti
     launch.catch(() => {});
     await adapter.event('initialized');
     if (fixture === 'visualizer_demo.py') {
-      await adapter.customRequest('setBreakpoints', {source: {path: path.join(ROOT, 'red_black_trees.py')}, breakpoints: [{line: rotationLine}]});
+      await adapter.customRequest('setBreakpoints', {source: {path: path.join(ROOT, 'red_black_trees.py')}, breakpoints: [{line: insertLine}]});
     }
     await adapter.customRequest('setExceptionBreakpoints', {filters: ['uncaught']});
     await adapter.customRequest('configurationDone');
@@ -207,6 +208,25 @@ test('real debugpy → VS Code bridge → HTTP: rotation, step, restart, excepti
 
     if (fixture === 'visualizer_demo.py') {
       assert.equal((await getState()).status, 'waiting');
+      for (const emptyTree of [true, false]) {
+        await adapter.customRequest('continue', {threadId: stop.threadId});
+        stop = await adapter.event('stopped');
+        await bridge.pendingSnapshot;
+        await server.queue;
+        const insertion = await getState();
+        assert.ok(!insertion.nodes.some(node => node.names.includes('current_node')));
+        assert.equal(insertion.root_is_none, emptyTree);
+        if (emptyTree) {
+          assert.ok(insertion.nil_names.includes('current_node'));
+        } else {
+          assert.ok(!insertion.nil_names.includes('current_node'));
+          const parent = insertion.nodes.find(node => node.names.includes('parent_of_new_node'));
+          assert.ok(parent);
+          assert.deepEqual(parent.nil_labels, {left: ['current_node']});
+          assert.ok(parent.nil_children.includes('left'));
+        }
+      }
+      await adapter.customRequest('setBreakpoints', {source: {path: path.join(ROOT, 'red_black_trees.py')}, breakpoints: [{line: rotationLine}]});
       await adapter.customRequest('continue', {threadId: stop.threadId});
       stop = await adapter.event('stopped');
       await bridge.pendingSnapshot;
