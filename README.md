@@ -68,3 +68,41 @@ ordinary deletion calls leave the removed node's own links alone.
 
 The [visualizer guide](visualizer/README.md#verification-and-limitations) also
 lists the debugger and browser integration checks.
+
+## Insertion time and comparison growth
+
+```sh
+.venv/bin/python -m pip install -r requirements-benchmark.txt
+.venv/bin/python test_time_complexity.py
+```
+
+The benchmark doubles the tree size from 256 to 131,072 nodes. It prints median
+build and deletion times in milliseconds, plus the mean time for one insertion
+into an existing tree, also in milliseconds. Each reported time is the median
+of five runs; each single-insertion run averages 1,000 probes. The growth column
+compares each timing with the previous size. Timing uses ordinary integer keys;
+comparison counts are measured separately.
+
+Open [time_complexity.svg](time_complexity.svg) for four plots: comparison counts
+and milliseconds for both building a tree and inserting one node. The elapsed
+time plots include scaled `n log₂(n)` and `log₂(n)` shape guides. Measurements are
+also saved in [time_complexity.csv](time_complexity.csv). Setup, node allocation,
+and removal of single-insertion probes are outside the insertion timers. Wall
+clock timings contain noise and illustrate growth rather than proving a bound.
+
+The additional [linear-axis graph](time_complexity_linear.svg) shows one insertion
+at evenly spaced sizes: 5,000, 10,000, …, 100,000 nodes. Both comparison counts
+and milliseconds use a linear node-count axis, with measurements saved in
+[time_complexity_linear.csv](time_complexity_linear.csv). Use `--linear-sizes`
+to choose different sizes for this graph. All graphs have explicit dark text
+on white, blue measured lines, and dark red dashed reference lines. PNG copies
+are also generated as `time_complexity.png` and `time_complexity_linear.png`.
+
+Choose different sizes or repeat counts with:
+
+```sh
+.venv/bin/python test_time_complexity.py --sizes 1000 5000 10000 50000 100000 --repeats 7 --trials 2000
+```
+
+Matplotlib is needed only for the graph; tables, CSV output, and unit tests work
+without it. Unit tests retain smaller inputs so ordinary correctness checks stay fast.

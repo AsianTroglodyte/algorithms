@@ -1,0 +1,2 @@
+# Optional plotting dependency; the benchmark tables and tests use the standard library.
+matplotlib
