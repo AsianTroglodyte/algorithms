@@ -14,6 +14,8 @@ from visualizer.server import create_server
 from visualizer import runtime
 from red_black_trees import Node, Tree, delete, insert
 
+delete = runtime.with_deletion_cleanup(delete)
+
 
 def fixture(children, detached=()):
     """Wire snapshots keep browser checks independent of algorithm edits."""

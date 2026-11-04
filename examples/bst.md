@@ -8,7 +8,7 @@ Work through them in this order:
 | 1. Tree minimum | `examples.bst_minimum` | `minimum = tree_minimum(tree.root)` | `node` follows 16 → 8 → 4 → 2 → 1. |
 | 2. Insertion | `examples.bst_insertion` | `tree_insert(tree, new_node)` | Search cursor, insertion parent, and the None slot replaced by 0. |
 | 3. Transplant | `examples.bst_transplant` | `transplant(tree, old_root, replacement)` | Parent 30 changes its right child from 31 to 32. |
-| 4. Deletion | `examples.bst_deletion` | `tree_delete(tree, node_to_delete)` | Minimum and transplant cooperate to replace root 16 with successor 17. |
+| 4. Deletion | `examples.bst_deletion` | `delete(tree, node_to_delete)` | Minimum and transplant cooperate to replace root 16 with successor 17. |
 
 In **VS Code**, open the repository root and select the corresponding
 **BST 1: Tree minimum**, **BST 2: Insertion**, **BST 3: Transplant**, or
@@ -41,9 +41,12 @@ temporarily produce a parent/child warning between assignments; the affected
 nodes stay visible. Cycles and shared children show the full graph, following
 the RB policy. `transplant` changes the tree's attachment and the replacement's
 parent; it leaves the removed root's own links for its caller to handle. The
-transplant lesson explicitly clears the old leaf's parent afterward. Deletion
-clears all three links on the removed node, which remains visible as detached
-while a local or debugger reference keeps it alive.
+transplant lesson explicitly clears the old leaf's parent afterward. The
+deletion driver wraps `tree_delete` with `with_deletion_cleanup`: after the
+algorithm returns successfully, that visualization-only wrapper clears all
+three links on the removed node. It remains visible as detached while a local
+or debugger reference keeps it alive. The algorithm source has no display
+cleanup, and unwrapped calls leave the removed node's own links alone.
 
 Run the examples without a debugger from the repository root:
 
@@ -58,15 +61,16 @@ For your own examples:
 
 ```python
 from binary_tree import Node, Tree, tree_minimum, tree_insert, transplant, tree_delete
-from visualizer.runtime import install_tracking, register_tree
+from visualizer.runtime import install_tracking, register_tree, with_deletion_cleanup
 
 install_tracking(Node)
+delete = with_deletion_cleanup(tree_delete)
 tree = Tree()
 register_tree(tree)
 new_node = Node(10)
 tree_insert(tree, new_node)
 minimum = tree_minimum(tree.root)
-tree_delete(tree, new_node)
+delete(tree, new_node)
 ```
 
 Use one registered tree and one Node class per debug session. RB and BST

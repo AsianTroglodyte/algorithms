@@ -1,9 +1,10 @@
 """Debug with M-x rb-visualizer-debug or VS Code's Red-black Tree: Debug Demo."""
 
 from red_black_trees import Node, Tree, delete, insert
-from visualizer.runtime import install_tracking, register_tree
+from visualizer.runtime import install_tracking, register_tree, with_deletion_cleanup
 
 install_tracking(Node)
+delete = with_deletion_cleanup(delete)
 tree = Tree()
 register_tree(tree)
 

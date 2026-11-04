@@ -1,3 +1,5 @@
+* BST tree
+
 * RB-tree
 
 ** RB-tree properties
@@ -11,12 +13,11 @@ it has other properties as well:
     NOTE: invariant 5 is the main balancing invariant
  5. All paths from any node to its NIL descendants contain the same number of
     black nodes. reiterate. This invariant hold for ALL nodes. in RB tree
-** loop invariants
 
-
+** Insertion loop invariants
 1. fix_node is red
-2. if fix_node.parent is root, then fix_node.parent
-   is black
+2. if fix_node.parent is root, then fix_node.parent is black
+
    (the most central)
 3. if the tree violates any of the red-black properties,
    then if violates and the violation is of either
@@ -26,3 +27,20 @@ it has other properties as well:
 
    2. If the tree violates property 4, it is because both fix_node and
       fix_node.parent are red.
+
+** Deletion properties
+ - If the deleted node had less than two children and was red then we we don't
+   need fixup
+ - If the deleted node had two children and the successor is red then we don't
+   need fixup
+
+Why?
+ - No black heights will have changed (maintain property 5)
+ - No red nodes will have been adjacent (maintain property 4)
+   - consider that removed node has at most one child and is red. if the child
+     taking it's place is black, cool, no red can have both black and red
+     children. If it's red, also cool. The removed node was red and could only
+     have red children
+   - consider the removed node was red, had two children, and the successor is
+     red.
+ -

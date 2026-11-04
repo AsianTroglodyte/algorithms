@@ -131,12 +131,6 @@ def tree_delete(tree: Tree, node_to_delete: Node):
         successor.left = node_to_delete.left  # node's left child to successor
         successor.left.parent = successor
 
-    # Like the RB tree, retain a deleted node as a detached object while a
-    # debugger/local still refers to it, without stale links into the tree.
-    node_to_delete.left = None
-    node_to_delete.right = None
-    node_to_delete.parent = None
-
 
 def tree_insert(tree: Tree, new_node: Node):
     """Insert a node into a Tree."""

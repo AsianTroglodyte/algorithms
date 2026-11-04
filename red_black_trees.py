@@ -185,8 +185,10 @@ def transplant(tree: Tree, old_root: Node, replacement: Node):
 
 def delete(tree: Tree, delete_node: Node):
     """Delete delete_node from tree and restore the red-black properties."""
-    replacement = delete_node
-    removed_color = replacement.color
+    # y is node whose original color matters for whether we do a delete_fixup.
+    # y is either the.
+    y = delete_node
+    y_original_color = y.color
 
     if delete_node.left is tree.nil:
         fix_node = delete_node.right
@@ -196,29 +198,24 @@ def delete(tree: Tree, delete_node: Node):
         transplant(tree, delete_node, replacement=delete_node.left)
     else:
         # The successor can replace delete_node without changing key order.
-        replacement = tree_minimum(tree, replacement=delete_node.right)
-        removed_color = replacement.color
-        fix_node = replacement.right
+        y = tree_minimum(tree, y=delete_node.right)
+        y_original_color = y.color
+        fix_node = y.right
 
-        if replacement.parent is delete_node:
-            fix_node.parent = replacement
+        if y.parent is delete_node:  # where delete node
+            fix_node.parent = y
         else:
-            transplant(tree, replacement, replacement=replacement.right)
-            replacement.right = delete_node.right
-            replacement.right.parent = replacement
+            transplant(tree, y, replacement=y.right)
+            y.right = delete_node.right
+            y.right.parent = y
 
-        transplant(tree, delete_node, replacement)
-        replacement.left = delete_node.left
-        replacement.left.parent = replacement
-        replacement.color = delete_node.color
+        transplant(tree, delete_node, y)
+        y.left = delete_node.left
+        y.left.parent = y
+        y.color = delete_node.color
 
-    if removed_color == Color.BLACK:
+    if y_original_color == Color.BLACK:
         delete_fixup(tree, fix_node)
-
-    # Keep a deleted but still referenced node detached for inspection.
-    delete_node.left = tree.nil
-    delete_node.right = tree.nil
-    delete_node.parent = tree.nil
 
 
 def delete_fixup(tree: Tree, fix_node: Node):

@@ -48,3 +48,9 @@ For a file named `examples/insertion_cases.py`, run
 `.venv/bin/python -m examples.insertion_cases`. In VS Code, copy the configuration
 in `.vscode/launch.json`, set `"module": "examples.insertion_cases"`, and keep
 `"rbVisualizer": true` to use the browser companion.
+
+For deletion examples, keep display cleanup in the driver rather than in the
+algorithm: import `with_deletion_cleanup` from `visualizer.runtime`, then use
+`delete = with_deletion_cleanup(delete)` (or wrap BST's `tree_delete`). This
+clears the removed node's links after a successful return on the registered
+tree so it can be displayed as detached. Plain algorithm calls are unchanged.

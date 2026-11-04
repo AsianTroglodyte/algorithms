@@ -33,7 +33,8 @@ def operation_snapshots(operation):
         action = lambda: bst.transplant(tree, **context)
     else:
         context = {'node_to_delete': tree.root}
-        action = lambda: bst.tree_delete(tree, context['node_to_delete'])
+        delete = runtime.with_deletion_cleanup(bst.tree_delete)
+        action = lambda: delete(tree, context['node_to_delete'])
     rows = [runtime.snapshot(context)]
     codes = {fn.__code__ for fn in [bst.tree_minimum, bst.tree_insert, bst.transplant, bst.tree_delete]}
 

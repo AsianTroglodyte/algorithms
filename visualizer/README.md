@@ -243,6 +243,24 @@ launch an unpredictable URL path. It remains available after Python exits.
 There is no external service, CDN, browser debugger UI, or operation-entry UI.
 Node tracking does not modify the tree operation functions.
 
+Deletion examples opt into display cleanup in their driver, outside the
+algorithm source:
+
+```python
+from red_black_trees import delete
+from visualizer.runtime import with_deletion_cleanup
+
+delete = with_deletion_cleanup(delete)
+```
+
+The wrapper calls the original function, then clears the removed node's three
+links to `tree.nil` (or None for a BST) after a successful return on the
+registered tree. Exceptions preserve the partial pointer state. Function
+metadata, the original call signature, keyword arguments, and return values
+are preserved; wrapping twice is harmless. Normal unwrapped algorithm calls
+leave the removed node's own links alone. The wrapper is supplied by the
+bundled deletion examples; custom drivers should opt in with the same line.
+
 ## Verification and limitations
 
 The snapshot and HTTP checks pass after the file reorganization. Full demo and

@@ -1,4 +1,4 @@
-"""BST operations preserve ordering, identity, parents, and detached nodes."""
+"""BST operations preserve ordering, identity, parents, and reachability."""
 
 import random
 import subprocess
@@ -31,6 +31,7 @@ class BinaryTreeTests(unittest.TestCase):
 
         walk(tree.root, None)
         self.assertEqual(actual, sorted(keys))
+        return visited
 
     def test_import_has_no_demo_side_effects(self):
         result = subprocess.run([sys.executable, '-B', '-c', 'import binary_tree'], capture_output=True, text=True, check=True)
@@ -82,10 +83,7 @@ class BinaryTreeTests(unittest.TestCase):
             for node in nodes:
                 bst.tree_delete(tree, node)
                 remaining.remove(node.key)
-                self.assert_tree(tree, remaining)
-                self.assertIsNone(node.left)
-                self.assertIsNone(node.right)
-                self.assertIsNone(node.parent)
+                self.assertNotIn(node, self.assert_tree(tree, remaining))
 
 
 if __name__ == '__main__':

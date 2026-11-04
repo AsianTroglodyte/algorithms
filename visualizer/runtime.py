@@ -1,6 +1,7 @@
 """Weak node tracking and finite snapshots, evaluated in the stopped frame."""
 
 import functools
+import inspect
 import json
 import weakref
 
@@ -57,6 +58,39 @@ def track_existing(node):
     if _node_type is None or not isinstance(node, _node_type):
         raise TypeError("Expected an instance of the tracked Node class")
     _track(node)
+
+
+def with_deletion_cleanup(function):
+    """Wrap a deletion in the driver, keeping display cleanup out of algorithms.
+
+    Only the registered tree is affected, and only after a normal return. The
+    first two arguments are the tree and removed node; binding the original
+    signature also preserves keyword calls and decorator introspection.
+    """
+    if getattr(function, "__visualizer_cleanup_owner__", None) is _nodes:
+        return function
+    signature = inspect.signature(function)
+    parameters = list(signature.parameters)
+    if len(parameters) < 2:
+        raise TypeError("Deletion needs tree and node arguments")
+
+    @functools.wraps(function)
+    def deleting(*args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        tree, removed = (bound.arguments[name] for name in parameters[:2])
+        result = function(*args, **kwargs)
+        registered = _tree() if _tree is not None else None
+        if tree is registered and _node_type is not None and isinstance(removed, _node_type):
+            empty = getattr(tree, "nil", None)
+            if removed is not empty:
+                removed.left = empty
+                removed.right = empty
+                removed.parent = empty
+        return result
+
+    deleting.__visualizer_cleanup_owner__ = _nodes
+    return deleting
 
 
 def _insertion_nil_slot(frame_locals, nil):

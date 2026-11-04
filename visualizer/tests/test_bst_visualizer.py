@@ -15,6 +15,7 @@ spec = importlib.util.spec_from_file_location('bst_test_runtime', Path(__file__)
 runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 runtime.install_tracking(Node)
+tree_delete = runtime.with_deletion_cleanup(tree_delete)
 
 
 class BSTSnapshotTests(unittest.TestCase):
@@ -91,6 +92,18 @@ class BSTSnapshotTests(unittest.TestCase):
         for warning in ['Cycle', 'Shared child', 'does not list']:
             self.assertIn(warning, '\n'.join(state['warnings']))
         self.assertFalse(any('color' in warning.lower() for warning in state['warnings']))
+
+    def test_unwrapped_deletion_keeps_original_node_links(self):
+        from binary_tree import tree_delete as original
+        self.assertIs(tree_delete.__wrapped__, original)
+        parent, removed, child = Node(20), Node(10), Node(5)
+        for node in [parent, removed, child]:
+            tree_insert(self.tree, node)
+        original(self.tree, removed)
+        self.assertIs(removed.left, child)
+        self.assertIs(removed.parent, parent)
+        self.assertIs(parent.left, child)
+        self.assertIs(child.parent, parent)
 
 
 if __name__ == '__main__':

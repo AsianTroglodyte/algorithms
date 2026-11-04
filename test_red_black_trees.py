@@ -38,6 +38,7 @@ class RedBlackTreeTests(unittest.TestCase):
 
         walk(tree.root)
         self.assertEqual(keys, sorted(expected_keys))
+        return visited
 
     def test_one_sentinel_per_tree_and_first_insertion(self):
         tree, other = rb.Tree(), rb.Tree()
@@ -136,10 +137,7 @@ class RedBlackTreeTests(unittest.TestCase):
                         nodes.remove(node)
                         rb.delete(tree, node)
                         remaining.remove(value)
-                        self.assert_tree(tree, remaining)
-                        self.assertIs(node.left, tree.nil)
-                        self.assertIs(node.right, tree.nil)
-                        self.assertIs(node.parent, tree.nil)
+                        self.assertNotIn(node, self.assert_tree(tree, remaining))
                     self.assertIs(tree.root, tree.nil)
                     self.assertIs(tree.nil.parent, tree.nil)
         self.assertGreater(nil_fixups, 0)

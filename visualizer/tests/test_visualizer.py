@@ -1,6 +1,7 @@
 """Snapshot semantics and independent HTTP transport regression tests."""
 
 import gc
+import inspect
 import json
 import threading
 import unittest
@@ -13,6 +14,7 @@ from visualizer import runtime
 from visualizer.server import create_server
 
 runtime.install_tracking(Node)
+delete = runtime.with_deletion_cleanup(delete)
 
 
 class SnapshotTests(unittest.TestCase):
@@ -165,6 +167,61 @@ class SnapshotTests(unittest.TestCase):
         gc.collect()
         self.assertIsNone(reference())
         self.assertEqual(runtime.snapshot({})['status'], 'waiting')
+
+    def test_deletion_cleanup_binds_keywords_preserves_result_and_runs_after_success(self):
+        removed, child = Node(20), Node(10)
+        removed.left = child
+        marker = object()
+
+        def operation(tree, delete_node):
+            self.assertIs(delete_node.left, child)
+            tree.root = tree.nil
+            return marker
+
+        wrapped = runtime.with_deletion_cleanup(operation)
+        self.assertIs(wrapped.__wrapped__, operation)
+        self.assertEqual(inspect.signature(wrapped), inspect.signature(operation))
+        self.assertEqual(wrapped.__name__, operation.__name__)
+        self.assertIs(runtime.with_deletion_cleanup(wrapped), wrapped)
+        self.assertIs(wrapped(delete_node=removed, tree=self.tree), marker)
+        for field in ['left', 'right', 'parent']:
+            self.assertIs(getattr(removed, field), self.tree.nil)
+
+    def test_failed_deletion_keeps_partial_state_for_debugging(self):
+        removed, child = Node(20), Node(10)
+        removed.left = child
+
+        def failing(tree, delete_node):
+            tree.root = tree.nil
+            raise RuntimeError('partial deletion')
+
+        wrapped = runtime.with_deletion_cleanup(failing)
+        with self.assertRaisesRegex(RuntimeError, 'partial deletion'):
+            wrapped(self.tree, removed)
+        self.assertIs(removed.left, child)
+
+    def test_cleanup_does_not_modify_a_different_registered_tree(self):
+        other = Tree()
+        removed, child = Node(20), Node(10)
+        removed.left = child
+
+        def operation(tree, delete_node):
+            tree.root = tree.nil
+
+        runtime.with_deletion_cleanup(operation)(other, removed)
+        self.assertIs(removed.left, child)
+
+    def test_unwrapped_rb_deletion_keeps_original_node_links(self):
+        from red_black_trees import delete as original
+        self.assertIs(delete.__wrapped__, original)
+        parent, removed, sibling, child = [Node(key) for key in [20, 10, 30, 5]]
+        for node in [parent, removed, sibling, child]:
+            insert(self.tree, node)
+        original(self.tree, removed)
+        self.assertIs(removed.left, child)
+        self.assertIs(removed.parent, parent)
+        self.assertIs(parent.left, child)
+        self.assertIs(child.parent, parent)
 
     def test_healthy_tree_and_real_rotation(self):
         a, b = Node(1), Node(2)

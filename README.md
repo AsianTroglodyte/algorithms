@@ -55,7 +55,10 @@ left and right links continue to point to itself. The sentinel is shared
 within one tree. Separate trees have separate sentinels.
 
 The helpers use explicit tree arguments, including `tree_minimum(tree, node)`.
-Deleted nodes retain NIL links so a live reference can be inspected separately.
+The visualizer's deletion drivers use `with_deletion_cleanup` to clear a
+removed node's links after a successful deletion, so a live reference can be
+inspected separately. This display cleanup lives outside the algorithms;
+ordinary deletion calls leave the removed node's own links alone.
 
 ## Checks
 
