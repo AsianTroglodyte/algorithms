@@ -199,6 +199,35 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'partial deletion'):
             wrapped(self.tree, removed)
         self.assertIs(removed.left, child)
+        self.assertNotIn(removed, runtime._deleting_nodes)
+
+    def test_nil_fixup_cursor_marks_its_unique_slot_during_deletion_only(self):
+        from examples._delete_cases import make_tree
+        tree, victim = make_tree(2)
+        runtime._tree = None
+        runtime.register_tree(tree)
+        seen = []
+        import red_black_trees as rb
+        original = rb.delete_fixup
+
+        def inspect_fixup(t, fix_node):
+            self.assertIs(fix_node, t.nil)
+            state = runtime.snapshot({'fix_node': fix_node})
+            parent = next(node for node in state['nodes'] if node['id'] == runtime._ids[t.nil.parent])
+            self.assertEqual(parent['nil_labels'], {'left': ['fix_node']})
+            self.assertNotIn('fix_node', state['nil_names'])
+            removed = next(node for node in state['nodes'] if node['id'] == runtime._ids[victim])
+            self.assertTrue(removed['deleting'])
+            seen.append(True)
+            original(t, fix_node)
+
+        from unittest.mock import patch
+        with patch.object(rb, 'delete_fixup', side_effect=inspect_fixup):
+            runtime.with_deletion_cleanup(rb.delete)(tree, victim)
+        self.assertEqual(seen, [True])
+        self.assertNotIn(victim, runtime._deleting_nodes)
+        self.assertTrue(all(not node['deleting'] for node in runtime.snapshot({})['nodes']))
+        self.assertTrue(all(not node['nil_labels'] for node in runtime.snapshot({'fix_node': tree.nil})['nodes']))
 
     def test_cleanup_does_not_modify_a_different_registered_tree(self):
         other = Tree()

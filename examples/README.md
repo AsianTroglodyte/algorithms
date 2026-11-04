@@ -1,5 +1,10 @@
 # Tree examples
 
+The [RB deletion cases 1–4](delete_cases.md) have four small examples, all in
+the left-child branch: **1 → 2**, **2**, **3 → 4**, and **4**. None runs the
+mirrored cases 5–8. Select **RB deletion case 1–4: ...** in VS Code or choose
+`examples.delete_case1` through `examples.delete_case4` in Emacs.
+
 The [deletion final-recoloring lessons](delete_final_recolor.md) demonstrate
 your two deletion problems: a red replacement becoming the root (property 2),
 and a red replacement below a red parent (property 4). Both skip the fixup loop

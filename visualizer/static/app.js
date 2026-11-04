@@ -25,6 +25,7 @@ function keepFocusVisible(geometry, projection) {
   // family until it joins them, rather than zooming out to fit both regions.
   const rooted = family.filter(node => !node.record.detached);
   const targets = rooted.length ? [...rooted] : [...family];
+  targets.push(...geometry.nodes.filter(node => node.nil && node.label?.lines.includes('fix_node')));
   if (projection.insertion) {
     const incoming = family.find(node => node.id === projection.insertion.nodeId && node.record.detached);
     const slot = geometry.nodes.find(node => node.id === `${projection.insertion.parentId}:nil:${projection.insertion.side}`);

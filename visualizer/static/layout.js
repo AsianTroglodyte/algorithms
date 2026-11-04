@@ -10,8 +10,9 @@ export function displaySnapshot(snapshot) {
   const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
   const byId = new Map(nodes.map(node => [node.id, node]));
   const hidden = edges.filter(edge => byId.get(edge.source)?.detached && byId.has(edge.target) && !byId.get(edge.target).detached);
-  if (!hidden.length) return snapshot;
   const hiddenSet = new Set(hidden), hiddenSources = new Set(hidden.map(edge => edge.source));
+  for (const node of nodes) if (node.deleting && node.detached) hiddenSources.add(node.id);
+  if (!hiddenSources.size) return snapshot;
   const hiddenTargets = new Set(hidden.map(edge => edge.target));
   const kept = edges.filter(edge => !hiddenSet.has(edge));
   const incoming = new Map();
@@ -88,6 +89,7 @@ export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), ex
   };
   const rotations = [...named('rotate_down'), ...named('rotate_up')];
   const fixing = named('fix_node');
+  const nilFixParent = nodes.find(node => Object.values(node.nil_labels ?? {}).some(names => names.includes('fix_node')));
   const searching = named('current_node');
   const inserting = named('new_node');
   const insertionParent = named('parent_of_new_node')[0];
@@ -119,8 +121,16 @@ export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), ex
         if (id === named('rotate_down')[0]) for (const grandchild of children.get(child.id) ?? []) add(grandchild.id);
       }
     }
-  } else if (fixing.length) {
+  } else if (fixing.length || nilFixParent) {
     fixing.forEach(id => family(id));
+    if (nilFixParent) {
+      add(nilFixParent.id);
+      for (const sibling of children.get(nilFixParent.id) ?? []) {
+        add(sibling.id);
+        for (const child of children.get(sibling.id) ?? []) add(child.id);
+      }
+      anchor = nilFixParent.id;
+    }
     // grandparent/uncle locals can still refer to the previous iteration just
     // after fix_node moves. Derive its current family from actual pointers.
     for (const id of named('sibling')) {

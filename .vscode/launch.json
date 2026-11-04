@@ -170,6 +170,74 @@
           "include": false
         }
       ]
+    },
+    {
+      "name": "RB deletion case 1: red sibling",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_case1",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
+    },
+    {
+      "name": "RB deletion case 2: black sibling, two black children",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_case2",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
+    },
+    {
+      "name": "RB deletion case 3: near red child",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_case3",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
+    },
+    {
+      "name": "RB deletion case 4: far red child",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_case4",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     }
   ]
 }

@@ -17,6 +17,13 @@ with zero loop iterations. VS Code lists both **Deletion problem ...** launch
 configurations; Emacs's example picker lists `examples.delete_red_root` and
 `examples.delete_red_parent`.
 
+The [RB deletion cases 1–4](../examples/delete_cases.md) add four small
+left-child examples with exact traces 1 → 2, 2, 3 → 4, and 4. They never enter
+the mirrored branch. While an instrumented deletion runs with `fix_node` at
+NIL, its unique child slot is labeled directly in the tree; Focus mode keeps
+the parent, sibling, and real near/far children visible. Removed nodes remain
+inspectable without stale-parent warnings interfering with the lesson.
+
 The Python runtime and server live directly in `visualizer/`, browser assets in
 `static/`, editor bridges in `emacs/` and `vscode/`, packaging in `scripts/`, and
 checks in `tests/`. Runnable tree examples live in [`../examples/`](../examples/README.md).

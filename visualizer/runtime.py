@@ -10,6 +10,7 @@ _tree = None
 _node_type = None
 _serial = 0
 _ids = weakref.WeakKeyDictionary()
+_deleting_nodes = weakref.WeakSet()
 
 
 def _track(node):
@@ -79,15 +80,24 @@ def with_deletion_cleanup(function):
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         tree, removed = (bound.arguments[name] for name in parameters[:2])
-        result = function(*args, **kwargs)
         registered = _tree() if _tree is not None else None
-        if tree is registered and _node_type is not None and isinstance(removed, _node_type):
-            empty = getattr(tree, "nil", None)
-            if removed is not empty:
-                removed.left = empty
-                removed.right = empty
-                removed.parent = empty
-        return result
+        tracked = tree is registered and _node_type is not None and isinstance(removed, _node_type)
+        already_deleting = tracked and removed in _deleting_nodes
+        if tracked:
+            _deleting_nodes.add(removed)
+        try:
+            result = function(*args, **kwargs)
+            registered = _tree() if _tree is not None else None
+            if tracked and tree is registered:
+                empty = getattr(tree, "nil", None)
+                if removed is not empty:
+                    removed.left = empty
+                    removed.right = empty
+                    removed.parent = empty
+            return result
+        finally:
+            if tracked and not already_deleting:
+                _deleting_nodes.discard(removed)
 
     deleting.__visualizer_cleanup_owner__ = _nodes
     return deleting
@@ -115,6 +125,20 @@ def _insertion_nil_slot(frame_locals, nil):
         return None
     if getattr(parent, side, None) is nil:
         return parent_id, side
+    return None
+
+
+def _deletion_nil_slot(frame_locals, nil):
+    """Locate x's unique child slot while an instrumented RB deletion runs."""
+    if not _deleting_nodes or "fix_node" not in frame_locals or frame_locals["fix_node"] is not nil:
+        return None
+    parent = getattr(nil, "parent", None)
+    if parent is nil or not isinstance(parent, _node_type):
+        return None
+    sides = [side for side in ("left", "right") if getattr(parent, side, None) is nil]
+    ident = _ids.get(parent)
+    if ident is not None and len(sides) == 1:
+        return ident, sides[0]
     return None
 
 
@@ -157,13 +181,18 @@ def snapshot(frame_locals):
         elif is_node(value) and value in _ids:
             names.setdefault(_ids[value], []).append(str(name))
     nil_slot = _insertion_nil_slot(frame_locals, nil)
+    cursor_name = "current_node"
+    if nil_slot is None and has_sentinel:
+        nil_slot = _deletion_nil_slot(frame_locals, nil)
+        cursor_name = "fix_node"
     if nil_slot is not None and has_sentinel:
-        nil_names.remove("current_node")
+        nil_names.remove(cursor_name)
     nodes, edges, warnings = [], [], []
     incoming = {}
     for ident, node in live.items():
         issues = []
         record = {"id": ident, "address": hex(id(node)), "names": sorted(names.get(ident, [])), "warnings": issues}
+        record["deleting"] = node in _deleting_nodes
         key = getattr(node, "key", "<uninitialized>")
         # Demo keys are integers. Avoid arbitrary user __repr__ side effects.
         record["key"] = str(key) if type(key) in (int, float, str, bool) else f"<{type(key).__name__}>"
@@ -171,7 +200,7 @@ def snapshot(frame_locals):
         record["color"] = getattr(color, "value", None) if has_sentinel else "plain"
         # These are boundary slots in the shared wire format: RB NIL or BST None.
         record["nil_children"] = [side for side in ("left", "right") if hasattr(node, side) and getattr(node, side) is nil]
-        record["nil_labels"] = {nil_slot[1]: ["current_node"]} if nil_slot and nil_slot[0] == ident else {}
+        record["nil_labels"] = {nil_slot[1]: [cursor_name]} if nil_slot and nil_slot[0] == ident else {}
         if has_sentinel and record["color"] not in ("red", "black"):
             record["color"] = "unknown"
             issues.append("Unknown or uninitialized color")

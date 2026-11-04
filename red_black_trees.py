@@ -198,7 +198,7 @@ def delete(tree: Tree, delete_node: Node):
         transplant(tree, delete_node, replacement=delete_node.left)
     else:
         # The successor can replace delete_node without changing key order.
-        y = tree_minimum(tree, y=delete_node.right)
+        y = tree_minimum(tree, node=delete_node.right)
         y_original_color = y.color
         fix_node = y.right
 
@@ -223,14 +223,14 @@ def delete_fixup(tree: Tree, fix_node: Node):
     while fix_node is not tree.root and fix_node.color == Color.BLACK:
         if fix_node is fix_node.parent.left:
             sibling = fix_node.parent.right
-
+            # CASE 1
             if sibling.color == Color.RED:
                 # A black sibling replaces the red sibling near fix_node.
                 sibling.color = Color.BLACK
                 fix_node.parent.color = Color.RED
                 left_rotate(tree, fix_node.parent)
                 sibling = fix_node.parent.right
-
+            # CASE 2
             if (
                 sibling.left.color == Color.BLACK
                 and sibling.right.color == Color.BLACK
@@ -239,13 +239,14 @@ def delete_fixup(tree: Tree, fix_node: Node):
                 sibling.color = Color.RED
                 fix_node = fix_node.parent
             else:
+                # CASE 3
                 if sibling.right.color == Color.BLACK:
                     # Rotate a near red child into the far-child position.
                     sibling.left.color = Color.BLACK
                     sibling.color = Color.RED
                     right_rotate(tree, sibling)
                     sibling = fix_node.parent.right
-
+                # CASE 4
                 # The far red child supplies the missing black node.
                 sibling.color = fix_node.parent.color
                 fix_node.parent.color = Color.BLACK

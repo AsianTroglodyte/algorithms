@@ -327,3 +327,32 @@ test('detached subtree internal edges remain intact', () => {
   assert.ok(view.edges.some(edge => edge.source === '999' && edge.target === '1000'));
   assert.ok(!view.edges.some(edge => edge.source === '999' && edge.target === '64'));
 });
+
+test('a removed black leaf stays inspectable without a stale parent warning', () => {
+  const state = fixture();
+  state.nodes.push({id: '999', key: '999', names: [], parent: '32', left: null, right: null,
+    color: 'black', deleting: true, detached: true, nil_children: ['left', 'right'],
+    warnings: ['Parent #32 does not list this node as a child']});
+  state.warnings = ['#999: Parent #32 does not list this node as a child'];
+  const view = displaySnapshot(state);
+  assert.deepEqual(view.warnings, []);
+  assert.deepEqual(view.nodes.at(-1).warnings, []);
+  assert.equal(view.nodes.at(-1).parent, '32');
+  assert.deepEqual(view.nodes.at(-1).inspectionWarnings, state.nodes.at(-1).warnings);
+});
+
+test('NIL fixup focuses on its parent, sibling, near child, and far child', () => {
+  const state = fixture(255, {});
+  const parent = state.nodes.find(node => node.id === '32');
+  parent.left = null;
+  parent.nil_children = ['left'];
+  parent.nil_labels = {left: ['fix_node']};
+  state.edges = state.edges.filter(edge => edge.target !== '64');
+  for (const node of state.nodes) if (['64', '128', '129'].includes(node.id)) node.detached = true;
+  state.nodes.find(node => node.id === '64').deleting = true;
+  const view = focusSnapshot(state);
+  assert.equal(view.anchor, '32');
+  for (const id of ['32', '65', '130', '131']) assert.ok(view.active.includes(id));
+  assert.ok(!view.active.includes('64'));
+  assert.equal(view.nodes.find(node => node.id === '3').detail, 'folded');
+});
