@@ -10,7 +10,7 @@ From the repository root:
 python3 -m venv .venv
 .venv/bin/python -m pip install -r visualizer/requirements.txt
 python3 visualizer/scripts/package_vscode.py
-code --install-extension dist/rb-tree-visualizer-0.1.1.vsix
+code --install-extension dist/rb-tree-visualizer-0.1.2.vsix
 ```
 
 Reload the VS Code window after installation if it is already open. Run
@@ -18,6 +18,9 @@ Reload the VS Code window after installation if it is already open. Run
 your browser and Python stops at entry. Use ordinary breakpoints, Continue,
 Step Over, Step Into, and Step Out in VS Code. The graph updates at each stop.
 The repository's **Red-black tree demo** F5 configuration does the same thing.
+The bridge skips the visualization runtime during stepping, so Step Into on a
+wrapped deletion enters the algorithm directly. This applies to RB and BST
+examples and marked custom configurations. Cleanup still runs on return.
 
 The graph initially says **Waiting** until the demo registers its tree. Set a
 breakpoint at `first = Node(30)` in `examples/visualizer_demo.py` and continue to it,

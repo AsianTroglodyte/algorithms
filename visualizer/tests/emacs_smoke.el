@@ -121,6 +121,18 @@
     (let ((buffer-file-name "/tmp/rb-not-python.txt"))
       (should-error (call-interactively #'rb-visualizer-debug) :type 'user-error))))
 
+(ert-deftest rb-launch-skips-visualization-runtime-when-stepping ()
+  (let (launched)
+    (cl-letf (((symbol-function 'browse-url) #'ignore)
+              ((symbol-function 'dap-debug) (lambda (config) (setq launched config))))
+      (rb-visualizer--launch '(:module "examples.delete_red_root")))
+    (let* ((rules (plist-get launched :rules))
+           (rule (aref rules 0)))
+      (should (equal (plist-get rule :path)
+                     (expand-file-name "visualizer/runtime.py" rb-visualizer-directory)))
+      (should (eq (plist-get rule :include) json-false))
+      (should (string-match-p "\"include\":false" (json-encode rules))))))
+
 (ert-deftest rb-step-checks-lifecycle-only-for-tree-sessions ()
   (let* ((process (make-process :name "rb-step-test" :command '("cat") :noquery t))
          (session (make-dap--debug-session :proc process :state 'running

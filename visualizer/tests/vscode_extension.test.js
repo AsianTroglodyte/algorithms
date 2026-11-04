@@ -62,6 +62,7 @@ test('extension registers commands, launches only marked sessions, and cleans up
   assert.equal(starts[0].config.stopOnEntry, true);
   assert.equal(starts[0].config.module, 'examples.visualizer_demo');
   const config = await registrations.provider.resolveDebugConfigurationWithSubstitutedVariables(folder, starts[0].config);
+  assert.deepEqual(config.rules, [{path: path.join(folder.uri.fsPath, 'visualizer', 'runtime.py'), include: false}]);
   assert.match(config.python, /\.venv[/\\](bin[/\\]python|Scripts[/\\]python.exe)$/);
   assert.equal(opened.length, 1);
   const session = {id: 'session-1', configuration: config};
@@ -85,7 +86,10 @@ test('extension registers commands, launches only marked sessions, and cleans up
   assert.match(errors.pop(), /Start with/);
 
   // A new session creates a fresh server and can start after termination.
-  await registrations.provider.resolveDebugConfigurationWithSubstitutedVariables(folder, config);
+  const customRule = {module: 'external_example', include: false};
+  const restarted = await registrations.provider.resolveDebugConfigurationWithSubstitutedVariables(folder,
+    {...config, rules: [...config.rules, customRule]});
+  assert.deepEqual(restarted.rules, [...config.rules, customRule]);
   assert.equal(companions.length, 2);
   extension.deactivate();
   assert.equal(companions[1].url, undefined);

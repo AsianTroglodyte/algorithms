@@ -2,7 +2,7 @@
   "name": "rb-tree-visualizer",
   "displayName": "Red-black Tree Visualizer",
   "description": "Show the actual red-black tree pointer state alongside Python debugging.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "rb-tree-local",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Debuggers", "Visualization"],

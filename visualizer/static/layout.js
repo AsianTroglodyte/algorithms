@@ -3,10 +3,54 @@
 const elk = new window.ELK();
 const bodyWidth = 100, bodyHeight = 84, labelGap = 16;
 
+// Detached objects remain inspectable, but their stale child references must
+// not connect the detached area to the rooted tree or distort its layout.
+export function displaySnapshot(snapshot) {
+  if (!snapshot) return snapshot;
+  const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const hidden = edges.filter(edge => byId.get(edge.source)?.detached && byId.has(edge.target) && !byId.get(edge.target).detached);
+  if (!hidden.length) return snapshot;
+  const hiddenSet = new Set(hidden), hiddenSources = new Set(hidden.map(edge => edge.source));
+  const hiddenTargets = new Set(hidden.map(edge => edge.target));
+  const kept = edges.filter(edge => !hiddenSet.has(edge));
+  const incoming = new Map();
+  for (const edge of kept) incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+  const summary = (edge, warning) => `#${edge.source} ${edge.side} → #${edge.target}: ${warning}`;
+  const suppressed = new Set(hidden.flatMap(edge => (edge.warnings ?? []).map(warning => summary(edge, warning))));
+  const displayEdges = kept.map(edge => {
+    const warnings = (edge.warnings ?? []).filter(warning => {
+      if (warning === 'Shared child (multiple incoming child edges)' && hiddenTargets.has(edge.target) && incoming.get(edge.target) === 1) {
+        suppressed.add(summary(edge, warning));
+        return false;
+      }
+      return true;
+    });
+    return {...edge, warnings};
+  });
+  const displayNodes = nodes.map(node => {
+    if (!hiddenSources.has(node.id)) return node;
+    const parent = byId.get(node.parent);
+    const warnings = (node.warnings ?? []).filter(warning => {
+      if (warning === `Parent #${node.parent} does not list this node as a child` && parent && !parent.detached) {
+        suppressed.add(`#${node.id}: ${warning}`);
+        return false;
+      }
+      return true;
+    });
+    return {...node, warnings, inspectionWarnings: node.warnings,
+      hiddenChildPointers: hidden.filter(edge => edge.source === node.id).map(edge => `${edge.side}: #${edge.target}`)};
+  });
+  return {...snapshot, nodes: displayNodes, edges: displayEdges,
+    warnings: (snapshot.warnings ?? []).filter(warning => !suppressed.has(warning))};
+}
+
 // Project a snapshot for display only. Never rewrite the debugger's pointer graph.
 // Current operation roles determine detail immediately; history is only a
 // fallback when the stopped frame has no recognizable operation locals.
 export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), expanded = new Set()} = {}) {
+  snapshot = displaySnapshot(snapshot);
+  previous = displaySnapshot(previous);
   const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
   const byId = new Map(nodes.map(node => [node.id, node]));
   const children = new Map(nodes.map(node => [node.id, []])), parents = new Map();
@@ -276,7 +320,8 @@ function layoutOrderedGroups(groups) {
 }
 
 export async function layout(nodes, edges, root, {sharedNil = false, rootIsNil = false, nilNames = [], insertion = null} = {}) {
-  const geometry = await layoutTree(nodes, edges, root, insertion);
+  const view = displaySnapshot({nodes, edges});
+  const geometry = await layoutTree(view.nodes, view.edges, root, insertion);
   return sharedNil ? withSharedNil(geometry, root, rootIsNil, nilNames) : geometry;
 }
 

@@ -1,5 +1,12 @@
 # Tree examples
 
+The [deletion final-recoloring lessons](delete_final_recolor.md) demonstrate
+your two deletion problems: a red replacement becoming the root (property 2),
+and a red replacement below a red parent (property 4). Both skip the fixup loop
+and are repaired by its final `fix_node.color = Color.BLACK`. Run
+`examples.delete_red_root` and `examples.delete_red_parent`, or use the two
+**Deletion problem ...** debugger launch configurations.
+
 The [BST lessons](bst.md) cover **tree minimum → insertion → transplant →
 deletion**, in that order. They use `binary_tree.py` and share the RB browser's
 focus, folding, pinning, and camera controls. VS Code has four ordered **BST**

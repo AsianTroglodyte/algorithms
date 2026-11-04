@@ -47,7 +47,11 @@ function activate(context) {
         await companion.start();
         log(`Companion ready: ${companion.url}`);
         await open();
-        return {...config, python};
+        const runtimePath = path.join(root, 'visualizer', 'runtime.py');
+        return {...config, python, rules: [
+          {path: runtimePath, include: false},
+          ...(config.rules || []).filter(rule => rule.path !== runtimePath),
+        ]};
       } catch (error) {
         companion?.stop();
         report(error);

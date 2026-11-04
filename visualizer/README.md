@@ -11,6 +11,12 @@ The browser identifies the tree type from its registered instance: BSTs use
 plain nodes and **Show None links**, while RB trees retain their color and
 shared-NIL controls. No additional dependency or extension change is needed.
 
+The [RB deletion final-recoloring lessons](../examples/delete_final_recolor.md)
+show how fixup's last assignment repairs a red root or a red-red parent edge
+with zero loop iterations. VS Code lists both **Deletion problem ...** launch
+configurations; Emacs's example picker lists `examples.delete_red_root` and
+`examples.delete_red_parent`.
+
 The Python runtime and server live directly in `visualizer/`, browser assets in
 `static/`, editor bridges in `emacs/` and `vscode/`, packaging in `scripts/`, and
 checks in `tests/`. Runnable tree examples live in [`../examples/`](../examples/README.md).
@@ -37,7 +43,7 @@ Build and install the local extension:
 
 ```sh
 python3 visualizer/scripts/package_vscode.py
-code --install-extension dist/rb-tree-visualizer-0.1.1.vsix
+code --install-extension dist/rb-tree-visualizer-0.1.2.vsix
 ```
 
 Open **this repository folder** in VS Code. If it was open during installation,
@@ -209,7 +215,12 @@ configuration are made by this project.
   Parent pointers appear in tooltips and warnings; the shared-sentinel view also
   draws parent pointers that reference NIL.
 - Nodes unreachable by child links from `tree.root` appear separately under
-  **Detached · still live**. Inconsistent states are displayed as they stand.
+  **Detached · still live**. Stale child references from that area back into
+  the rooted tree are hidden from the diagram and do not affect layout or
+  produce shared-child warnings on an otherwise valid rooted tree. Hover over
+  the detached node to inspect its actual left/right/parent pointers. The
+  snapshot and Python objects retain their actual values; genuine pointer
+  inconsistencies within the rooted tree remain visible.
 - While Python runs, the last paused snapshot remains visible and is explicitly
   marked **Running**. Waiting, ended, error, and disconnected states are distinct.
 
@@ -260,6 +271,15 @@ metadata, the original call signature, keyword arguments, and return values
 are preserved; wrapping twice is harmless. Normal unwrapped algorithm calls
 leave the removed node's own links alone. The wrapper is supplied by the
 bundled deletion examples; custom drivers should opt in with the same line.
+
+Both editor bridges exclude `visualizer/runtime.py` from normal debugpy
+stepping. Step Into on a wrapped deletion goes directly to `delete` or
+`tree_delete`, and stepping continues normally into fixup and other algorithm
+helpers. Display cleanup still runs on return. All supplied launch
+configurations include this same narrow file rule. After updating the Emacs
+bridge, load it again and start a new debug session; a running session retains
+its old launch rules. VS Code's bridge supplies the rule for marked custom
+configurations as well, while preserving other configured rules.
 
 ## Verification and limitations
 

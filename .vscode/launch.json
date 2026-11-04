@@ -10,7 +10,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "BST 1: Tree minimum",
@@ -21,7 +27,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "BST 2: Insertion",
@@ -32,7 +44,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "BST 3: Transplant",
@@ -43,7 +61,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "BST 4: Deletion",
@@ -54,7 +78,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "Case 1 three times: internal black parent",
@@ -65,7 +95,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "Case 1 three times: black root parent",
@@ -76,7 +112,13 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     },
     {
       "name": "Case 1 three times: black NIL parent",
@@ -87,7 +129,47 @@
       "console": "internalConsole",
       "stopOnEntry": true,
       "justMyCode": true,
-      "rbVisualizer": true
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
+    },
+    {
+      "name": "Deletion problem 1: red root (zero loop cases)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_red_root",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
+    },
+    {
+      "name": "Deletion problem 2: red parent (zero loop cases)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.delete_red_parent",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true,
+      "rules": [
+        {
+          "path": "${workspaceFolder}/visualizer/runtime.py",
+          "include": false
+        }
+      ]
     }
   ]
 }

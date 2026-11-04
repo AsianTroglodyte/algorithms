@@ -1,4 +1,4 @@
-import {layout, focusSnapshot} from './layout.js';
+import {layout, focusSnapshot, displaySnapshot} from './layout.js';
 
 const svg = document.querySelector('#canvas');
 const viewport = document.querySelector('#viewport');
@@ -89,7 +89,7 @@ let renderGeneration = 0;
 let layoutError = '';
 async function render() {
   const generation = ++renderGeneration;
-  const snapshot = data;
+  const snapshot = displaySnapshot(data);
   const bst = snapshot.tree_kind === 'bst';
   const focus = document.querySelector('#view-mode').value === 'focus';
   const projection = focusSnapshot(snapshot, {previous: previousSnapshot, pinned, expanded});
@@ -191,7 +191,8 @@ async function render() {
       const path = edgePath(points, edge.rounded);
       const line = el('path', {
         d: path, class: `edge${edge.nil ? ' nil-edge' : ''}${edge.parent ? ' parent-edge' : ''} ${record?.warnings.length ? 'warning' : ''}`,
-        ...(edge.pointer ? {'data-source': edge.sourceNode, 'data-target': edge.targetNode, 'data-pointer': edge.pointer} : {}),
+        ...(edge.pointer ? {'data-source': edge.sourceNode, 'data-target': edge.targetNode, 'data-pointer': edge.pointer} :
+          record ? {'data-source': record.source, 'data-target': record.target, 'data-pointer': record.side} : {}),
       });
       line.append(el('title', {}, edge.title || record?.warnings.join('; ') || `${record?.side ?? (bst ? 'None' : 'NIL')} child`));
       content.append(line);
@@ -227,7 +228,9 @@ async function render() {
     const incident = (snapshot.edges ?? []).some(edge => (edge.source === record.id || edge.target === record.id) && edge.warnings.length);
     const compact = record.detail === 'compact';
     const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `node ${record.color} ${record.warnings.length || incident ? 'warning' : ''}${compact ? ' compact' : ''}${record.focused ? ' focused' : ''}${record.pinned ? ' pinned' : ''}`, 'data-id': record.id});
-    g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nparent: ${record.parent ? '#'+record.parent : record.parent_is_nil ? 'NIL' : 'None'}\n${record.warnings.join('\n')}`));
+    const pointer = field => record[field] ? '#' + record[field] :
+      (field === 'parent' ? record.parent_is_nil : !bst && record.nil_children?.includes(field)) ? 'NIL' : 'None';
+    g.append(el('title', {}, `#${record.id} · ${record.address}\n${record.names.join(', ')}\nleft: ${pointer('left')}\nright: ${pointer('right')}\nparent: ${pointer('parent')}\n${(record.inspectionWarnings ?? record.warnings).join('\n')}${record.hiddenChildPointers?.length ? '\nHidden stale child pointers: ' + record.hiddenChildPointers.join(', ') : ''}`));
     g.append(el('rect', {class: 'node-body', width: node.bodyWidth, height: node.bodyHeight, rx: 12}));
     appendLabel(g, node, record.id === snapshot.root);
     const maxKey = compact ? 5 : 9;

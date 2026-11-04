@@ -7,7 +7,7 @@ import test from 'node:test';
 // ELK engine for intermediate pointer graphs without its worker shim in Node.
 globalThis.window = {ELK: class {layout() { throw new Error('Unexpected ELK fallback for a valid tree'); }}};
 const source = await readFile(new URL('../static/layout.js', import.meta.url), 'utf8');
-const {focusSnapshot, layout} = await import(`data:text/javascript;base64,${Buffer.from(source + '\n//# sourceURL=rb-layout.mjs').toString('base64')}`);
+const {focusSnapshot, layout, displaySnapshot} = await import(`data:text/javascript;base64,${Buffer.from(source + '\n//# sourceURL=rb-layout.mjs').toString('base64')}`);
 delete globalThis.window;
 
 function fixture(count = 127, aliases = {'64': ['fix_node']}) {
@@ -267,4 +267,63 @@ test('BST transplant and deletion expose their target, replacement/successor, an
   const removing = focusSnapshot(deletion);
   for (const id of ['32', '16', '64', '65', '66', '33']) assert.ok(removing.active.includes(id));
   assert.equal(removing.nodes.find(n => n.id === '3').detail, 'folded');
+});
+
+function staleDeletedPointer() {
+  const state = fixture();
+  const shared = 'Shared child (multiple incoming child edges)';
+  state.nodes.push({id: '999', key: '999', names: ['delete_node', 'y'], address: '0x999', color: 'black',
+    parent: '32', left: '64', right: null, detached: true, nil_children: ['right'],
+    warnings: ['Parent #32 does not list this node as a child']});
+  state.edges.find(edge => edge.target === '64').warnings = [shared];
+  state.edges.push({source: '999', target: '64', side: 'left', warnings: ["Child's parent does not point back", shared]});
+  state.warnings = [
+    '#999: Parent #32 does not list this node as a child',
+    `#32 left → #64: ${shared}`, `#999 left → #64: Child's parent does not point back`, `#999 left → #64: ${shared}`,
+  ];
+  return state;
+}
+
+test('stale detached references disappear from presentation without changing actual pointers', async () => {
+  const state = staleDeletedPointer(), original = structuredClone(state);
+  const view = displaySnapshot(state);
+  assert.ok(!view.edges.some(edge => edge.source === '999' && edge.target === '64'));
+  assert.deepEqual(view.edges.find(edge => edge.source === '32' && edge.target === '64').warnings, []);
+  assert.deepEqual(view.warnings, []);
+  const detached = view.nodes.find(node => node.id === '999');
+  assert.equal(detached.left, '64');
+  assert.equal(detached.parent, '32');
+  assert.deepEqual(detached.hiddenChildPointers, ['left: #64']);
+  assert.deepEqual(detached.inspectionWarnings, original.nodes.at(-1).warnings);
+  assert.deepEqual(detached.warnings, []);
+  assert.deepEqual(state, original);
+  assert.equal(focusSnapshot(state).unsafe, false);
+  const geometry = await layout(state.nodes, state.edges, state.root);
+  assert.ok(!geometry.edges.some(edge => edge.record?.source === '999' && edge.record?.target === '64'));
+  const ordinary = fixture();
+  const expected = await layout(ordinary.nodes, ordinary.edges, ordinary.root);
+  const rootedPositions = g => g.nodes.filter(node => node.group === 'attached' && !node.nil).map(node => [node.id, node.x, node.y]);
+  assert.deepEqual(rootedPositions(geometry), rootedPositions(expected));
+  assertRoutesClear(geometry);
+});
+
+test('real rooted shared children and pointer mismatches stay visible', () => {
+  const state = staleDeletedPointer();
+  state.edges.push({source: '3', target: '64', side: 'left', warnings: ["Child's parent does not point back", 'Shared child (multiple incoming child edges)']});
+  const view = displaySnapshot(state);
+  assert.ok(view.edges.find(edge => edge.source === '32' && edge.target === '64').warnings.some(warning => warning.startsWith('Shared child')));
+  assert.ok(view.edges.find(edge => edge.source === '3' && edge.target === '64').warnings.some(warning => warning.startsWith("Child's parent")));
+  assert.ok(view.warnings.some(warning => warning.startsWith('#32 left')));
+  assert.equal(focusSnapshot(state).unsafe, true);
+});
+
+test('detached subtree internal edges remain intact', () => {
+  const state = staleDeletedPointer();
+  state.nodes.push({id: '1000', key: '1000', names: [], address: '0x1000', color: 'black',
+    parent: '999', left: null, right: null, detached: true, nil_children: ['left', 'right'], warnings: []});
+  state.nodes.find(node => node.id === '999').right = '1000';
+  state.edges.push({source: '999', target: '1000', side: 'right', warnings: []});
+  const view = displaySnapshot(state);
+  assert.ok(view.edges.some(edge => edge.source === '999' && edge.target === '1000'));
+  assert.ok(!view.edges.some(edge => edge.source === '999' && edge.target === '64'));
 });

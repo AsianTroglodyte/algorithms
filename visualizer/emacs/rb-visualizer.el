@@ -204,7 +204,10 @@ Keep all breakpoint records; dap-mode restores markers in visiting buffers."
                                              (when (and pythonpath (not (equal pythonpath "")))
                                                (concat path-separator pythonpath))))
                           :cwd rb-visualizer-directory :console "internalConsole"
-                          :stopOnEntry t :justMyCode t)
+                          :stopOnEntry t :justMyCode t
+                          :rules (vector
+                                  (list :path (expand-file-name "visualizer/runtime.py" rb-visualizer-directory)
+                                        :include json-false)))
                     target))
       (error (rb-visualizer--publish
               `((status . "error") (message . ,(error-message-string err))))))))
