@@ -159,8 +159,13 @@ configuration are made by this project.
   **Reset focus** clears pins and manual expansion. **Full tree** restores all
   nodes and labels. Pins and expansions last for the current page/session;
   refresh starts in Full tree.
-- Focus mode keeps the active node near its screen position and briefly animates
-  layout changes (unless reduced motion is enabled). Compression changes other
+- Focus mode follows the active family, moving the camera when it leaves the
+  visible area and zooming out only if that family needs more room. During
+  insertion it anchors the parent and reserves space for the new node's leaf
+  links, keeping the rooted tree steady as the node joins it and initializes.
+  A node joining from the detached area fades into its new position instead of
+  flying across the diagram. Small layout changes animate briefly unless
+  reduced motion is enabled. Compression changes other
   positions while preserving pointer sides. Temporary parent/child mismatches
   keep the affected nodes and warning edges visible without expanding the whole
   tree, including between insertion's parent and child assignments. Cycles,
@@ -168,8 +173,9 @@ configuration are made by this project.
   graph. In Shared sentinel view, folded subtrees summarize their internal
   NIL links too; expand them or choose Full tree to see every NIL pointer.
 - Drag the background to pan; scroll to zoom around the pointer.
-- **Fit to view** explicitly fits all known nodes. Camera position and scale
-  persist across pauses and NIL toggles; updates never auto-fit.
+- **Fit to view** explicitly fits all known nodes. Full tree preserves camera
+  position and scale across pauses; Focus mode follows the active family.
+  NIL toggles preserve the camera in both modes.
 - **Show NIL leaves** displays black placeholders for sentinel children. Every
   placeholder represents the same `tree.nil` object; hover to see its address.
 - With NIL leaves enabled, choose **NIL view → Shared sentinel** to draw one
@@ -270,6 +276,7 @@ node --test visualizer/tests/vscode_bridge.test.js visualizer/tests/vscode_exten
 node visualizer/tests/focus.test.mjs
 # Optional; requires Playwright and Chromium:
 python visualizer/tests/focus_browser_smoke.py
+python visualizer/tests/focus_camera_smoke.py
 ```
 
 The VS Code checks need Node.js 18+ and the Python environment above. They

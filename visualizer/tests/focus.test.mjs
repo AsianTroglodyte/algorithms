@@ -151,7 +151,7 @@ test('warning edges and both claimed parents remain visible with their actual po
   assert.deepEqual(view.edges.find(e => e.target === '127'), edge);
 });
 
-test('focus survives every insertion linking phase on both sides', () => {
+test('focus and rooted positions stay steady through insertion and leaf initialization', async () => {
   for (const side of ['left', 'right']) {
     const before = fixture(127, {'64': ['parent_of_new_node']});
     before.nodes.find(n => n.id === '64').nil_labels = {[side]: ['current_node']};
@@ -170,13 +170,34 @@ test('focus survives every insertion linking phase on both sides', () => {
     linked.nodes.find(n => n.id === '64').nil_labels = {};
     linked.edges.push({source: '64', target: '128', side, warnings: []});
     linked.warnings = [];
-    let previous = null, recent = [];
-    for (const state of [before, parentOnly, linked]) {
+    const leftSet = structuredClone(linked), initialized = structuredClone(linked);
+    leftSet.nodes.find(n => n.id === '128').nil_children = ['left'];
+    initialized.nodes.find(n => n.id === '128').nil_children = ['left', 'right'];
+    let previous = null, recent = [], oldPositions = null;
+    for (const state of [before, parentOnly, linked, leftSet, initialized]) {
       const view = focusSnapshot(state, {previous, recent});
       assert.equal(view.unsafe, false);
       assert.ok(view.folded > 0);
       for (const id of ['64', '128']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
       assert.equal(view.nodes.filter(n => n.detail !== 'folded').length + view.folded, 128);
+      assert.equal(view.anchor, '64');
+      for (const id of ['32', '65']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
+      const geometry = await layout(view.nodes, view.edges, state.root, {insertion: view.insertion});
+      assertRoutesClear(geometry);
+      const parent = geometry.nodes.find(n => n.id === '64');
+      const positions = new Map(geometry.nodes.filter(n => !n.nil && !n.record.detached).map(n =>
+        [n.id, [n.x + n.bodyWidth / 2 - parent.x - parent.bodyWidth / 2, n.y - parent.y]]));
+      if (oldPositions) for (const [id, [x, y]] of positions) {
+        if (!oldPositions.has(id)) continue;
+        const [oldX, oldY] = oldPositions.get(id);
+        assert.ok(Math.hypot(x - oldX, y - oldY) < 80, `${side} insertion shifts ${id}`);
+        if (state === leftSet || state === initialized) assert.deepEqual([x, y], [oldX, oldY]);
+      }
+      // Reserved layout slots must never masquerade as actual NIL assignments.
+      for (const n of geometry.nodes.filter(n => n.nil && n.id.startsWith('128:'))) {
+        assert.ok(state.nodes.find(n => n.id === '128').nil_children.includes(n.id.split(':').at(-1)));
+      }
+      oldPositions = positions;
       recent = view.active; previous = state;
     }
   }

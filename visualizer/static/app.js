@@ -8,6 +8,7 @@ let transform = {x: 60, y: 85, k: 1};
 let bounds = {x: 0, y: 0, width: 400, height: 300};
 let previousSnapshot = null, recentActive = [], currentActive = [];
 let lastPositions = new Map();
+let lastViewMode = 'full', lastRenderedRevision = -1;
 const pinned = new Set(), expanded = new Set();
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 function el(tag, attrs = {}, text) {
@@ -17,6 +18,41 @@ function el(tag, attrs = {}, text) {
   return node;
 }
 function applyTransform() { viewport.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.k})`); }
+function keepFocusVisible(geometry, projection) {
+  const ids = new Set(projection.frame);
+  const family = geometry.nodes.filter(node => !node.nil && ids.has(node.id));
+  // Before linkage the pending node is in a separate region. Follow its rooted
+  // family until it joins them, rather than zooming out to fit both regions.
+  const rooted = family.filter(node => !node.record.detached);
+  const targets = rooted.length ? [...rooted] : [...family];
+  if (projection.insertion) {
+    const incoming = family.find(node => node.id === projection.insertion.nodeId && node.record.detached);
+    const slot = geometry.nodes.find(node => node.id === `${projection.insertion.parentId}:nil:${projection.insertion.side}`);
+    if (incoming && slot) {
+      // Leave room around the known insertion slot now, so linking the child
+      // does not require another large camera move on the following pause.
+      targets.push({...slot, x: slot.x + slot.bodyWidth / 2 - incoming.bodyWidth / 2 - 48,
+        width: Math.max(incoming.width, slot.width) + 96, height: incoming.height});
+    }
+  }
+  if (!targets.length || !svg.clientWidth || !svg.clientHeight) return;
+  const box = {
+    left: Math.min(...targets.map(node => node.x)), top: Math.min(...targets.map(node => node.y)),
+    right: Math.max(...targets.map(node => node.x + node.width)), bottom: Math.max(...targets.map(node => node.y + node.height)),
+  };
+  const padX = Math.min(64, svg.clientWidth * .1), padY = Math.min(56, svg.clientHeight * .15);
+  const right = svg.clientWidth - padX, bottom = svg.clientHeight - padY;
+  const k = Math.max(.05, Math.min(transform.k, (right - padX) / (box.right - box.left), (bottom - padY) / (box.bottom - box.top)));
+  // Preserve the current zoom unless the active family needs more space.
+  const anchor = targets.find(node => node.id === projection.anchor) ?? targets[0];
+  transform.x += (anchor.x + anchor.bodyWidth / 2) * (transform.k - k);
+  transform.y += (anchor.y + anchor.bodyHeight / 2) * (transform.k - k);
+  transform.k = k;
+  const left = transform.x + box.left * k, top = transform.y + box.top * k;
+  const edgeX = transform.x + box.right * k, edgeY = transform.y + box.bottom * k;
+  transform.x += left < padX ? padX - left : edgeX > right ? right - edgeX : 0;
+  transform.y += top < padY ? padY - top : edgeY > bottom ? bottom - edgeY : 0;
+}
 function edgePath(points, rounded) {
   if (!rounded || points.length < 3) return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
   let path = `M ${points[0].x} ${points[0].y}`;
@@ -63,7 +99,7 @@ async function render() {
   let geometry;
   try {
     geometry = await layout(view.nodes ?? [], view.edges ?? [], snapshot.root, {
-      sharedNil, rootIsNil: snapshot.root_is_nil, nilNames: snapshot.nil_names,
+      sharedNil, rootIsNil: snapshot.root_is_nil, nilNames: snapshot.nil_names, insertion: focus ? projection.insertion : null,
     });
   } catch (error) {
     if (generation === renderGeneration) {
@@ -75,21 +111,42 @@ async function render() {
   // A newer pause or NIL toggle can overtake this asynchronous layout.
   if (generation !== renderGeneration) return;
   layoutError = '';
-  const positions = new Map(geometry.nodes.map(node => [node.id, {x: node.x + node.bodyWidth / 2, y: node.y + node.bodyHeight / 2}]));
-  let cameraShift = {x: 0, y: 0};
+  document.querySelector('#reset-focus').hidden = !focus;
+  const help = document.querySelector('#focus-help');
+  help.hidden = !focus;
+  help.textContent = projection.unsafe ? 'Pointer inconsistency: showing the full graph.' :
+    `${projection.nodes.filter(node => node.detail !== 'folded').length} shown · ${projection.folded} in folded subtrees · ${pinned.size} pinned · Click a node to pin; click a triangle to expand. Tab + Enter also works.`;
+  const nodes = snapshot.nodes ?? [];
+  document.querySelector('#counts').textContent = `${nodes.length} live nodes · ${nodes.filter(n => n.detached).length} detached · ${(snapshot.warnings ?? []).length} warnings`;
+  const warnings = document.querySelector('#warnings');
+  warnings.replaceChildren();
+  for (const warning of snapshot.warnings ?? []) { const p = document.createElement('p'); p.textContent = '⚠ '+warning; warnings.append(p); }
+  warnings.hidden = !snapshot.warnings?.length;
+  const oldTransform = {...transform};
+  const positions = new Map(geometry.nodes.map(node => [node.id, {x: node.x + node.bodyWidth / 2, y: node.y + node.bodyHeight / 2, group: node.group}]));
   if (focus) {
     const anchor = [projection.anchor, ...projection.active, ...recentActive].find(id => lastPositions.has(id) && positions.has(id));
     if (anchor) {
-      cameraShift = {x: lastPositions.get(anchor).x - positions.get(anchor).x, y: lastPositions.get(anchor).y - positions.get(anchor).y};
+      const cameraShift = {x: lastPositions.get(anchor).x - positions.get(anchor).x, y: lastPositions.get(anchor).y - positions.get(anchor).y};
       transform.x += cameraShift.x * transform.k;
       transform.y += cameraShift.y * transform.k;
+    }
+    if (lastViewMode !== 'focus' || (snapshot.status === 'paused' && snapshot.revision !== lastRenderedRevision)) {
+      keepFocusVisible(geometry, projection);
     }
   }
   function animateNode(g, node) {
     const old = lastPositions.get(node.id);
     if (!focus || !old || reducedMotion.matches) return;
     const current = positions.get(node.id);
-    const dx = old.x - current.x - cameraShift.x, dy = old.y - current.y - cameraShift.y;
+    const dx = (oldTransform.x + old.x * oldTransform.k - transform.x) / transform.k - current.x;
+    const dy = (oldTransform.y + old.y * oldTransform.k - transform.y) / transform.k - current.y;
+    // Joining the tree should appear at the new slot, not sweep across the
+    // whole diagram from the detached staging area.
+    if (old.group !== node.group || Math.hypot(dx, dy) * transform.k > 180) {
+      g.animate([{opacity: .25}, {opacity: 1}], {duration: 140, easing: 'ease-out'});
+      return;
+    }
     if (dx || dy) g.animate([
       {transform: `translate(${node.x + dx}px, ${node.y + dy}px)`},
       {transform: `translate(${node.x}px, ${node.y}px)`},
@@ -182,17 +239,8 @@ async function render() {
   bounds = viewport.getBBox();
   applyTransform();
   lastPositions = positions;
-  document.querySelector('#reset-focus').hidden = !focus;
-  const help = document.querySelector('#focus-help');
-  help.hidden = !focus;
-  help.textContent = projection.unsafe ? 'Pointer inconsistency: showing the full graph.' :
-    `${projection.nodes.filter(node => node.detail !== 'folded').length} shown · ${projection.folded} in folded subtrees · ${pinned.size} pinned · Click a node to pin; click a triangle to expand. Tab + Enter also works.`;
-  const nodes = snapshot.nodes ?? [];
-  document.querySelector('#counts').textContent = `${nodes.length} live nodes · ${nodes.filter(n => n.detached).length} detached · ${(snapshot.warnings ?? []).length} warnings`;
-  const warnings = document.querySelector('#warnings');
-  warnings.replaceChildren();
-  for (const warning of snapshot.warnings ?? []) { const p = document.createElement('p'); p.textContent = '⚠ '+warning; warnings.append(p); }
-  warnings.hidden = !snapshot.warnings?.length;
+  lastViewMode = focus ? 'focus' : 'full';
+  lastRenderedRevision = snapshot.revision;
   svg.dataset.revision = snapshot.revision ?? '';
   svg.dataset.nilView = sharedNil ? 'shared' : 'leaves';
   svg.dataset.viewMode = focus ? 'focus' : 'full';

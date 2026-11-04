@@ -32,9 +32,9 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   const named = name => nodes.filter(node => node.names?.includes(name)).map(node => node.id);
   const active = new Set(), add = id => { if (byId.has(id)) active.add(id); };
   const parentOf = id => byId.get(id)?.parent ?? parents.get(id);
-  const family = id => {
+  const family = (id, insertionParent = null) => {
     add(id);
-    const parent = parentOf(id), grandparent = parentOf(parent);
+    const parent = insertionParent ?? parentOf(id), grandparent = parentOf(parent);
     add(parent); add(grandparent);
     for (const child of children.get(grandparent) ?? []) add(child.id);
   };
@@ -42,6 +42,11 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   const fixing = named('fix_node');
   const searching = named('current_node');
   const inserting = named('new_node');
+  const insertionParent = named('parent_of_new_node')[0];
+  const insertionSide = children.get(insertionParent)?.find(child => child.id === inserting[0])?.side
+    ?? Object.entries(byId.get(insertionParent)?.nil_labels ?? {}).find(([, names]) => names.includes('current_node'))?.[0];
+  const insertion = inserting.length && insertionParent && insertionSide ?
+    {nodeId: inserting[0], parentId: insertionParent, side: insertionSide} : null;
   let anchor = rotations[0] ?? fixing[0] ?? searching[0] ?? inserting[0];
   if (rotations.length) {
     for (const id of rotations) {
@@ -53,16 +58,20 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
       }
     }
   } else if (fixing.length) {
-    fixing.forEach(family);
+    fixing.forEach(id => family(id));
     for (const name of ['grandparent', 'uncle', 'sibling']) named(name).forEach(add);
   } else if (searching.length || inserting.length || named('parent_of_new_node').length) {
     searching.forEach(add); inserting.forEach(add);
     named('parent_of_new_node').forEach(add);
-    if (!searching.length) inserting.forEach(family);
-    if (!searching.length && inserting.some(id => !parentOf(id))) add(snapshot.root);
+    if (!searching.length) inserting.forEach(id => family(id, insertionParent));
+    if (!searching.length && !insertionParent && inserting.some(id => !parentOf(id))) add(snapshot.root);
+    // A pending insertion lives in the detached region until the child link is
+    // installed. Anchor the rooted family, rather than chasing that region.
+    if (insertion) anchor = insertionParent;
   } else {
-    for (const name of ['delete_node', 'replacement', 'old_root', 'node']) named(name).forEach(family);
+    for (const name of ['delete_node', 'replacement', 'old_root', 'node']) named(name).forEach(id => family(id));
   }
+  const frame = [...active];
   // An insertion cursor at NIL lives on its owning child slot.
   for (const node of nodes) if (Object.values(node.nil_labels ?? {}).some(names => names.length)) add(node.id);
   // Never fold away a warning or the endpoints needed to understand it.
@@ -90,7 +99,7 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   }
   if (!active.size) add(snapshot.root);
   anchor ??= active.values().next().value;
-  if (unsafe) return {nodes, edges, active: [...active], anchor, folded: 0, unsafe: true};
+  if (unsafe) return {nodes, edges, active: [...active], anchor, frame, folded: 0, unsafe: true};
 
   const full = new Set([...active, ...recent, ...pinned].filter(id => byId.has(id)));
   const visible = new Set(full);
@@ -133,7 +142,7 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
     }
   }
   return {nodes: projected, edges: edges.filter(edge => kept.has(edge.source) && kept.has(edge.target)),
-    active: [...active], anchor, folded, unsafe: false};
+    active: [...active], anchor, frame: frame.length ? frame : [...active], insertion, folded, unsafe: false};
 }
 function labelFor(lines, width, height) {
   if (!lines.length) return null;
@@ -246,12 +255,12 @@ function layoutOrderedGroups(groups) {
   return {id: 'graph', children: groups};
 }
 
-export async function layout(nodes, edges, root, {sharedNil = false, rootIsNil = false, nilNames = []} = {}) {
-  const geometry = await layoutTree(nodes, edges, root);
+export async function layout(nodes, edges, root, {sharedNil = false, rootIsNil = false, nilNames = [], insertion = null} = {}) {
+  const geometry = await layoutTree(nodes, edges, root, insertion);
   return sharedNil ? withSharedNil(geometry, root, rootIsNil, nilNames) : geometry;
 }
 
-async function layoutTree(nodes, edges, root) {
+async function layoutTree(nodes, edges, root, insertion) {
   const byId = new Map(nodes.map(node => [node.id, node]));
   const children = new Map(nodes.map(node => [node.id, []]));
   edges.forEach(edge => children.get(edge.source)?.push(edge));
@@ -303,18 +312,25 @@ async function layoutTree(nodes, edges, root) {
     });
     // Invisible NIL slots still participate in layout. A sole child must keep
     // its left/right meaning, and the NIL toggle must not rearrange the tree.
-    for (const side of node.nil_children ?? []) {
+    const nilSlots = new Set(node.nil_children ?? []);
+    // Reserve missing links during initialization without drawing a NIL
+    // pointer until the debuggee has actually assigned the sentinel.
+    if (node.id === insertion?.nodeId) {
+      for (const side of ['left', 'right']) if (!children.get(node.id).some(edge => edge.side === side)) nilSlots.add(side);
+    }
+    for (const side of nilSlots) {
+      const reserved = !(node.nil_children ?? []).includes(side);
       const nilId = `${node.id}:nil:${side}`;
       const nilWidth = compact ? 24 : 40, nilHeight = compact ? 18 : 24;
       const label = labelFor(node.nil_labels?.[side] ?? [], nilWidth, nilHeight);
       const referenced = Boolean(label);
       group.children.push({
         id: nilId, width: label ? label.x + label.width : nilWidth, height: Math.max(nilHeight, label?.height ?? 0),
-        bodyWidth: nilWidth, bodyHeight: nilHeight, nil: true, referenced, label,
+        bodyWidth: nilWidth, bodyHeight: nilHeight, nil: true, referenced, label, reserved,
         layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
         ports: [{id: `${nilId}:in`, x: nilWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}}],
       });
-      group.edges.push({id: `${nilId}:edge`, sources: [`${node.id}:${side}`], targets: [`${nilId}:in`], nil: true, referenced,
+      group.edges.push({id: `${nilId}:edge`, sources: [`${node.id}:${side}`], targets: [`${nilId}:in`], nil: true, referenced, reserved,
         labels: [{text: side === 'left' ? 'L' : 'R', width: 10, height: 14}]});
     }
   }
@@ -363,10 +379,12 @@ async function layoutTree(nodes, edges, root) {
     const x = ox + (container.x ?? 0), y = oy + (container.y ?? 0);
     if (groups.has(container.id)) result.groups.push({id: container.id, x, y, width: container.width, height: container.height});
     for (const node of container.children ?? []) {
+      if (node.reserved) continue;
       if (node.children) collect(node, x, y);
       else result.nodes.push({...node, group: container.id, x: node.x + x, y: node.y + y});
     }
     for (const edge of container.edges ?? []) {
+      if (edge.reserved) continue;
       result.edges.push({
         ...edge,
         sections: (edge.sections ?? []).map(section => [section.startPoint, ...(section.bendPoints ?? []), section.endPoint].map(point => ({x: point.x + x, y: point.y + y}))),
