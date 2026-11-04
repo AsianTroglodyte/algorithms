@@ -1,4 +1,4 @@
-VISUALIZER_SPEC.md
+visualizer/SPEC.md
 .venv/
 __pycache__/
 *.pyc
