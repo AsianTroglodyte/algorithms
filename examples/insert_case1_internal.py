@@ -17,6 +17,10 @@ def main():
 
     # Break here. Step into insert, then into insert_fixup.
     # fix_node: 0 -> 2 -> 6 -> 14. Parent 22 is black and is NOT root 30.
+    # - property 4 violations bubble up
+    # - fix_node goes up two levels on iteration. Crucially, proportional to h
+    #   which is log(n)
+    # - may finish before getting to root because fix_node parent may be black
     insert(tree, new_node)
 
     # Break here to inspect the repaired tree. No rotations were needed.

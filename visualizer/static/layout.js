@@ -2,6 +2,131 @@
 // cannot influence the positions or ordering of real nodes.
 const elk = new window.ELK();
 const bodyWidth = 100, bodyHeight = 84, labelGap = 16;
+
+// Project a snapshot for display only. Never rewrite the debugger's pointer graph.
+// Recent activity is supplied separately so it expires after one snapshot.
+export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = new Set(), expanded = new Set()} = {}) {
+  const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const children = new Map(nodes.map(node => [node.id, []])), parents = new Map();
+  let unsafe = Boolean(snapshot.warnings?.length || nodes.some(node => node.warnings?.length));
+  for (const edge of edges) {
+    if (!byId.has(edge.source) || !byId.has(edge.target)) { unsafe = true; continue; }
+    if (parents.has(edge.target) || children.get(edge.source).some(child => child.side === edge.side)) unsafe = true;
+    parents.set(edge.target, edge.source);
+    children.get(edge.source).push({id: edge.target, side: edge.side});
+    if (edge.warnings?.length) unsafe = true;
+  }
+  // A finite traversal also catches malformed fixtures without warning metadata.
+  const order = nodes.filter(node => !parents.has(node.id)).map(node => node.id);
+  const visited = new Set(order);
+  for (let i = 0; i < order.length; i++) for (const child of children.get(order[i])) {
+    if (visited.has(child.id)) { unsafe = true; continue; }
+    visited.add(child.id); order.push(child.id);
+  }
+  if (order.length !== nodes.length) unsafe = true;
+
+  const named = name => nodes.filter(node => node.names?.includes(name)).map(node => node.id);
+  const active = new Set(), add = id => { if (byId.has(id)) active.add(id); };
+  const parentOf = id => byId.get(id)?.parent ?? parents.get(id);
+  const family = id => {
+    add(id);
+    const parent = parentOf(id), grandparent = parentOf(parent);
+    add(parent); add(grandparent);
+    for (const child of children.get(grandparent) ?? []) add(child.id);
+  };
+  const rotations = [...named('rotate_down'), ...named('rotate_up')];
+  const fixing = named('fix_node');
+  const searching = named('current_node');
+  const inserting = named('new_node');
+  let anchor = rotations[0] ?? fixing[0] ?? searching[0] ?? inserting[0];
+  if (rotations.length) {
+    for (const id of rotations) {
+      add(id); add(parentOf(id));
+      // Include transferred subtree roots even before rotate_up is assigned.
+      for (const child of children.get(id) ?? []) {
+        add(child.id);
+        if (id === named('rotate_down')[0]) for (const grandchild of children.get(child.id) ?? []) add(grandchild.id);
+      }
+    }
+  } else if (fixing.length) {
+    fixing.forEach(family);
+    for (const name of ['grandparent', 'uncle', 'sibling']) named(name).forEach(add);
+  } else if (searching.length || inserting.length || named('parent_of_new_node').length) {
+    searching.forEach(add); inserting.forEach(add);
+    named('parent_of_new_node').forEach(add);
+    if (!searching.length) inserting.forEach(family);
+    if (!searching.length && inserting.some(id => !parentOf(id))) add(snapshot.root);
+  } else {
+    for (const name of ['delete_node', 'replacement', 'old_root', 'node']) named(name).forEach(family);
+  }
+  // An insertion cursor at NIL lives on its owning child slot.
+  for (const node of nodes) if (Object.values(node.nil_labels ?? {}).some(names => names.length)) add(node.id);
+  if (previous) {
+    const before = new Map((previous.nodes ?? []).map(node => [node.id, node]));
+    const links = state => {
+      const result = new Map();
+      for (const edge of state.edges ?? []) result.set(`${edge.source}:${edge.side}`, edge.target);
+      return result;
+    };
+    const oldLinks = links(previous), newLinks = links(snapshot);
+    for (const node of nodes) {
+      const old = before.get(node.id);
+      if (!old || ['color', 'key', 'parent'].some(field => node[field] !== old[field])) add(node.id);
+    }
+    for (const key of new Set([...oldLinks.keys(), ...newLinks.keys()])) {
+      if (oldLinks.get(key) !== newLinks.get(key)) {
+        add(key.slice(0, key.lastIndexOf(':'))); add(oldLinks.get(key)); add(newLinks.get(key));
+      }
+    }
+  }
+  if (!active.size) add(snapshot.root);
+  anchor ??= active.values().next().value;
+  if (unsafe) return {nodes, edges, active: [...active], anchor, folded: 0, unsafe: true};
+
+  const full = new Set([...active, ...recent, ...pinned].filter(id => byId.has(id)));
+  const visible = new Set(full);
+  if (byId.has(snapshot.root)) visible.add(snapshot.root);
+  // One extra family level provides context for the next fixup iteration.
+  for (const id of full) {
+    const parent = parentOf(id);
+    if (byId.has(parent)) {
+      visible.add(parent);
+      for (const child of children.get(parent) ?? []) visible.add(child.id);
+    }
+    for (const child of children.get(id) ?? []) visible.add(child.id);
+  }
+  for (const id of expanded) {
+    if (!byId.has(id)) continue;
+    const pending = [id];
+    for (let i = 0; i < pending.length; i++) {
+      visible.add(pending[i]);
+      for (const child of children.get(pending[i])) pending.push(child.id);
+    }
+  }
+  // Preserve the path back to the root, including paths to manually opened nodes.
+  for (const id of [...visible]) {
+    let parent = parents.get(id);
+    while (parent && !visible.has(parent)) { visible.add(parent); parent = parents.get(parent); }
+  }
+  const sizes = new Map();
+  for (const id of [...order].reverse()) sizes.set(id, 1 + children.get(id).reduce((n, child) => n + sizes.get(child.id), 0));
+  const projected = [], kept = new Set();
+  let folded = 0;
+  for (const id of order) {
+    const node = byId.get(id), parent = parents.get(id);
+    if (!visible.has(id) && parent && !visible.has(parent)) continue;
+    kept.add(id);
+    if (!visible.has(id) && sizes.get(id) > 1) {
+      folded += sizes.get(id);
+      projected.push({...node, names: [], nil_children: [], nil_labels: {}, detail: 'folded', foldedCount: sizes.get(id)});
+    } else {
+      projected.push({...node, detail: full.has(id) ? 'full' : 'compact', focused: active.has(id), pinned: pinned.has(id)});
+    }
+  }
+  return {nodes: projected, edges: edges.filter(edge => kept.has(edge.source) && kept.has(edge.target)),
+    active: [...active], anchor, folded, unsafe: false};
+}
 function labelFor(lines, width, height) {
   if (!lines.length) return null;
   const labelHeight = lines.length * 18 + 10;
@@ -60,14 +185,15 @@ function layoutOrderedGroups(groups) {
     for (const node of [...order].reverse()) {
       const branches = children.get(node.id);
       const left = branches.left && shapes.get(branches.left.id), right = branches.right && shapes.get(branches.right.id);
-      let separation = 80;
+      let separation = node.record?.detail ? 48 : 80;
       if (left && right) {
         for (let d = 0; d < Math.min(left.right.length, right.left.length); ++d) {
           separation = Math.max(separation, left.right[d] - right.left[d] + 40);
         }
       }
       const shape = {left: [-node.bodyWidth / 2], right: [node.width - node.bodyWidth / 2], branches: []};
-      for (const [child, shift] of [[branches.left, right ? -separation / 2 : -60], [branches.right, left ? separation / 2 : 60]]) {
+      const singleShift = node.record?.detail ? 40 : 60;
+      for (const [child, shift] of [[branches.left, right ? -separation / 2 : -singleShift], [branches.right, left ? separation / 2 : singleShift]]) {
         if (!child) continue;
         const childShape = shapes.get(child.id);
         shape.branches.push({child, shift});
@@ -148,18 +274,21 @@ async function layoutTree(nodes, edges, root) {
       children: [], edges: [],
     });
     const group = groups.get(id);
-    const lines = [...(node.id === root ? ['ROOT'] : []), ...node.names];
-    const label = labelFor(lines, bodyWidth, bodyHeight);
+    const compact = node.detail === 'compact', folded = node.detail === 'folded';
+    const nodeWidth = compact ? 48 : folded ? 88 : bodyWidth;
+    const nodeHeight = compact ? 32 : folded ? 60 : bodyHeight;
+    const lines = compact || folded ? [] : [...(node.id === root ? ['ROOT'] : []), ...node.names];
+    const label = labelFor(lines, nodeWidth, nodeHeight);
     // Reserve the callout as part of the layout footprint so other nodes and
     // child edges cannot pass through it. Ports still attach to the body.
-    const width = label ? label.x + label.width : bodyWidth;
+    const width = label ? label.x + label.width : nodeWidth;
     group.children.push({
-      id: node.id, width, height: Math.max(bodyHeight, label?.height ?? 0), bodyWidth, bodyHeight, label, record: node,
+      id: node.id, width, height: Math.max(nodeHeight, label?.height ?? 0), bodyWidth: nodeWidth, bodyHeight: nodeHeight, label, record: node,
       layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
       ports: [
-        {id: `${node.id}:in`, x: bodyWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}},
+        {id: `${node.id}:in`, x: nodeWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}},
         ...['left', 'right'].map((side, i) => ({
-          id: `${node.id}:${side}`, x: bodyWidth * (i ? .75 : .25), y: bodyHeight,
+          id: `${node.id}:${side}`, x: nodeWidth * (i ? .75 : .25), y: nodeHeight,
           width: 0, height: 0, layoutOptions: {'elk.port.side': 'SOUTH'},
         })),
       ],
@@ -168,13 +297,14 @@ async function layoutTree(nodes, edges, root) {
     // its left/right meaning, and the NIL toggle must not rearrange the tree.
     for (const side of node.nil_children ?? []) {
       const nilId = `${node.id}:nil:${side}`;
-      const label = labelFor(node.nil_labels?.[side] ?? [], 40, 24);
+      const nilWidth = compact ? 24 : 40, nilHeight = compact ? 18 : 24;
+      const label = labelFor(node.nil_labels?.[side] ?? [], nilWidth, nilHeight);
       const referenced = Boolean(label);
       group.children.push({
-        id: nilId, width: label ? label.x + label.width : 40, height: Math.max(24, label?.height ?? 0),
-        bodyWidth: 40, bodyHeight: 24, nil: true, referenced, label,
+        id: nilId, width: label ? label.x + label.width : nilWidth, height: Math.max(nilHeight, label?.height ?? 0),
+        bodyWidth: nilWidth, bodyHeight: nilHeight, nil: true, referenced, label,
         layoutOptions: {'elk.portConstraints': 'FIXED_POS'},
-        ports: [{id: `${nilId}:in`, x: 20, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}}],
+        ports: [{id: `${nilId}:in`, x: nilWidth / 2, y: 0, width: 0, height: 0, layoutOptions: {'elk.port.side': 'NORTH'}}],
       });
       group.edges.push({id: `${nilId}:edge`, sources: [`${node.id}:${side}`], targets: [`${nilId}:in`], nil: true, referenced,
         labels: [{text: side === 'left' ? 'L' : 'R', width: 10, height: 14}]});
@@ -339,7 +469,7 @@ function withSharedNil(geometry, root, rootIsNil, nilNames) {
   for (const node of real) for (const aliases of Object.values(node.record.nil_labels ?? {})) for (const name of aliases) names.add(name);
   const label = labelFor([...(rootIsNil ? ['ROOT'] : []), ...[...names].sort()], 100, 64);
   const rootNode = real.find(node => node.id === root);
-  const center = rootNode ? rootNode.x + bodyWidth / 2 : real.length ? (Math.min(...real.map(n => n.x)) + Math.max(...real.map(n => n.x + bodyWidth))) / 2 : 50;
+  const center = rootNode ? rootNode.x + rootNode.bodyWidth / 2 : real.length ? (Math.min(...real.map(n => n.x)) + Math.max(...real.map(n => n.x + n.bodyWidth))) / 2 : 50;
   const sentinel = {
     id: 'nil:shared', nil: true, shared: true, referenced: true, root: rootIsNil,
     x: center - 50, y: Math.max(0, ...real.map(n => n.y + n.height + 96), ...geometry.nodes.filter(n => n.nil).map(n => n.y + 48)),

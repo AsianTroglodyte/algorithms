@@ -147,6 +147,24 @@ configuration are made by this project.
 
 ## Browser controls and interpretation
 
+- Choose **View → Focus mode** to keep the active insertion/fixup family or
+  rotation at full size. Nearby nodes and the path to the root show just their
+  keys and actual colors; distant subtrees fold into triangles with node counts.
+  Focus follows stopped-frame locals (`current_node`, `new_node`, `fix_node`,
+  `rotate_down`, etc.) and pointer/color changes. Recently active nodes remain
+  expanded for one more pause. Without operation locals, focus uses changes or
+  the root. The display follows snapshots; it does not predict execution.
+- In Focus mode, click a node to **pin/unpin** it at full size, or click a
+  triangle to **expand** its subtree. Tab then Enter/Space also works.
+  **Reset focus** clears pins and manual expansion. **Full tree** restores all
+  nodes and labels. Pins and expansions last for the current page/session;
+  refresh starts in Full tree.
+- Focus mode keeps the active node near its screen position and briefly animates
+  layout changes (unless reduced motion is enabled). Compression changes other
+  positions while preserving pointer sides. Pointer inconsistencies temporarily
+  display the full graph, so intermediate rotation states and warnings stay
+  inspectable. In Shared sentinel view, folded subtrees summarize their internal
+  NIL links too; expand them or choose Full tree to see every NIL pointer.
 - Drag the background to pan; scroll to zoom around the pointer.
 - **Fit to view** explicitly fits all known nodes. Camera position and scale
   persist across pauses and NIL toggles; updates never auto-fit.
@@ -247,6 +265,9 @@ Run the core checks from the repository root:
 .venv/bin/python visualizer/tests/debug_adapter_smoke.py
 emacs --batch -Q -l visualizer/tests/emacs_smoke.el
 node --test visualizer/tests/vscode_bridge.test.js visualizer/tests/vscode_extension.test.js
+node visualizer/tests/focus.test.mjs
+# Optional; requires Playwright and Chromium:
+python visualizer/tests/focus_browser_smoke.py
 ```
 
 The VS Code checks need Node.js 18+ and the Python environment above. They
