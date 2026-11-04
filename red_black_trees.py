@@ -190,20 +190,20 @@ def delete(tree: Tree, delete_node: Node):
 
     if delete_node.left is tree.nil:
         fix_node = delete_node.right
-        transplant(tree, delete_node, delete_node.right)
+        transplant(tree, delete_node, replacement=delete_node.right)
     elif delete_node.right is tree.nil:
         fix_node = delete_node.left
-        transplant(tree, delete_node, delete_node.left)
+        transplant(tree, delete_node, replacement=delete_node.left)
     else:
         # The successor can replace delete_node without changing key order.
-        replacement = tree_minimum(tree, delete_node.right)
+        replacement = tree_minimum(tree, replacement=delete_node.right)
         removed_color = replacement.color
         fix_node = replacement.right
 
         if replacement.parent is delete_node:
             fix_node.parent = replacement
         else:
-            transplant(tree, replacement, replacement.right)
+            transplant(tree, replacement, replacement=replacement.right)
             replacement.right = delete_node.right
             replacement.right.parent = replacement
 
@@ -255,7 +255,7 @@ def delete_fixup(tree: Tree, fix_node: Node):
                 sibling.right.color = Color.BLACK
                 left_rotate(tree, fix_node.parent)
                 fix_node = tree.root
-        else:
+        else:  # same as lines 3-22, bith with "right" and "left" exchanged
             sibling = fix_node.parent.left
 
             if sibling.color == Color.RED:
