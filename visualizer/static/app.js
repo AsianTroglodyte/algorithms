@@ -91,7 +91,7 @@ async function render() {
   const generation = ++renderGeneration;
   const snapshot = data;
   const focus = document.querySelector('#view-mode').value === 'focus';
-  const projection = focusSnapshot(snapshot, {previous: previousSnapshot, recent: recentActive, pinned, expanded});
+  const projection = focusSnapshot(snapshot, {previous: previousSnapshot, pinned, expanded});
   currentActive = projection.active;
   const view = focus ? projection : snapshot;
   const showNil = document.querySelector('#nil').checked;

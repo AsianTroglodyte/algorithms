@@ -114,17 +114,16 @@ def main():
             assert page.locator('.parent-edge').count() == 1
             page.locator('#nil').uncheck()
 
-            # Stepping moves focus upward, retains the old family for one pause,
-            # and pointer/color changes outside that family remain visible.
+            # Stepping moves focus upward and folds the old family immediately.
             moved = fixture(active='16')
             publish(moved)
-            assert page.locator('.node[data-id="64"]:not(.compact)').count() == 1
-            publish(moved)
-            assert page.locator('.node[data-id="64"]:not(.compact)').count() == 0
+            assert page.locator('.node[data-id="64"]').count() == 0
+            assert page.locator('.folded-subtree[data-id="32"]').count() == 1
+            assert page.locator('.folded-subtree[data-id="3"]').count() == 1
             changed = copy.deepcopy(moved)
             changed['nodes'][-1]['color'] = 'black'
             publish(changed)
-            assert page.locator('.node[data-id="127"]:not(.compact)').count() == 1
+            assert page.locator('.node[data-id="127"]').count() == 0
 
             # A local warning retains focus and exposes the affected nodes.
             malformed = copy.deepcopy(changed)

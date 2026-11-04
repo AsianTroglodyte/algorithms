@@ -148,12 +148,15 @@ configuration are made by this project.
 ## Browser controls and interpretation
 
 - Choose **View → Focus mode** to keep the active insertion/fixup family or
-  rotation at full size. Nearby nodes and the path to the root show just their
-  keys and actual colors; distant subtrees fold into triangles with node counts.
+  rotation at full size. The path to the root shows just keys and actual colors;
+  off-path branches fold at their first unrelated subtree root into triangles
+  with node counts.
   Focus follows stopped-frame locals (`current_node`, `new_node`, `fix_node`,
-  `rotate_down`, etc.) and pointer/color changes. Recently active nodes remain
-  expanded for one more pause. Without operation locals, focus uses changes or
-  the root. The display follows snapshots; it does not predict execution.
+  `rotate_down`, etc.). Nodes leave the active family immediately when those
+  roles change; old recolors and stale uncle/grandparent locals do not keep
+  unrelated branches expanded. Without operation locals, focus uses the current
+  snapshot's changes or the root. The display follows snapshots; it does not
+  predict execution.
 - In Focus mode, click a node to **pin/unpin** it at full size, or click a
   triangle to **expand** its subtree. Tab then Enter/Space also works.
   **Reset focus** clears pins and manual expansion. **Full tree** restores all

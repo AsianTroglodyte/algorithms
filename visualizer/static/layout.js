@@ -4,8 +4,9 @@ const elk = new window.ELK();
 const bodyWidth = 100, bodyHeight = 84, labelGap = 16;
 
 // Project a snapshot for display only. Never rewrite the debugger's pointer graph.
-// Recent activity is supplied separately so it expires after one snapshot.
-export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = new Set(), expanded = new Set()} = {}) {
+// Current operation roles determine detail immediately; history is only a
+// fallback when the stopped frame has no recognizable operation locals.
+export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), expanded = new Set()} = {}) {
   const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
   const byId = new Map(nodes.map(node => [node.id, node]));
   const children = new Map(nodes.map(node => [node.id, []])), parents = new Map();
@@ -59,7 +60,12 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
     }
   } else if (fixing.length) {
     fixing.forEach(id => family(id));
-    for (const name of ['grandparent', 'uncle', 'sibling']) named(name).forEach(add);
+    // grandparent/uncle locals can still refer to the previous iteration just
+    // after fix_node moves. Derive its current family from actual pointers.
+    for (const id of named('sibling')) {
+      const parent = parentOf(id);
+      if (fixing.some(fix => parent === parentOf(fix))) add(id);
+    }
   } else if (searching.length || inserting.length || named('parent_of_new_node').length) {
     searching.forEach(add); inserting.forEach(add);
     named('parent_of_new_node').forEach(add);
@@ -79,7 +85,7 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   for (const edge of edges) if (edge.warnings?.length) {
     add(edge.source); add(edge.target); add(byId.get(edge.target)?.parent);
   }
-  if (previous) {
+  if (previous && !frame.length) {
     const before = new Map((previous.nodes ?? []).map(node => [node.id, node]));
     const links = state => {
       const result = new Map();
@@ -101,17 +107,14 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   anchor ??= active.values().next().value;
   if (unsafe) return {nodes, edges, active: [...active], anchor, frame, folded: 0, unsafe: true};
 
-  const full = new Set([...active, ...recent, ...pinned].filter(id => byId.has(id)));
+  const full = new Set([...active, ...pinned].filter(id => byId.has(id)));
   const visible = new Set(full);
   if (byId.has(snapshot.root)) visible.add(snapshot.root);
-  // One extra family level provides context for the next fixup iteration.
+  // Parent paths provide orientation. Other branches become summaries at the
+  // first off-path child, rather than exposing another level around each role.
   for (const id of full) {
     const parent = parentOf(id);
-    if (byId.has(parent)) {
-      visible.add(parent);
-      for (const child of children.get(parent) ?? []) visible.add(child.id);
-    }
-    for (const child of children.get(id) ?? []) visible.add(child.id);
+    if (byId.has(parent)) visible.add(parent);
   }
   for (const id of expanded) {
     if (!byId.has(id)) continue;

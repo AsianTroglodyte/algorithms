@@ -85,14 +85,12 @@ test('rotation participants and transferred subtree roots stay full size', () =>
   assert.equal(view.anchor, '4');
 });
 
-test('color and pointer changes remain visible, then recent activity expires', () => {
-  const before = fixture(), after = structuredClone(before);
+test('frames without operation locals use changes for one snapshot only', () => {
+  const before = fixture(127, {}), after = structuredClone(before);
   after.nodes.find(n => n.id === '127').color = 'black';
   const changed = focusSnapshot(after, {previous: before});
   assert.ok(changed.active.includes('127'));
-  const recent = focusSnapshot(after, {previous: after, recent: changed.active});
-  assert.equal(recent.nodes.find(n => n.id === '127').detail, 'full');
-  const expired = focusSnapshot(after, {previous: after, recent: recent.active});
+  const expired = focusSnapshot(after, {previous: after});
   assert.ok(!expired.nodes.some(n => n.id === '127' && n.detail === 'full'));
   const detached = structuredClone(before);
   detached.edges = detached.edges.filter(e => e.target !== '127');
@@ -100,6 +98,28 @@ test('color and pointer changes remain visible, then recent activity expires', (
   detached.nodes.find(n => n.id === '127').detached = true;
   const pointers = focusSnapshot(detached, {previous: before});
   assert.ok(pointers.active.includes('63') && pointers.active.includes('127'));
+});
+
+test('current roles override earlier recolor activity and fold off-path branches at their root', () => {
+  const before = fixture(), after = structuredClone(before);
+  after.nodes.find(n => n.id === '127').color = 'black';
+  const view = focusSnapshot(after, {previous: before});
+  assert.ok(!view.active.includes('127'));
+  // The root's whole unrelated branch is one summary, not a compact root
+  // with its children exposed at yet another level.
+  assert.equal(view.nodes.find(n => n.id === '3').detail, 'folded');
+  assert.equal(view.nodes.find(n => n.id === '3').foldedCount, 63);
+  assert.ok(!view.nodes.some(n => ['6', '7', '127'].includes(n.id)));
+});
+
+test('moving fix_node folds the old family immediately despite stale uncle locals', () => {
+  const before = fixture();
+  const after = fixture(127, {'16': ['fix_node', 'grandparent'], '33': ['uncle']});
+  const view = focusSnapshot(after, {previous: before});
+  for (const id of ['16', '8', '4', '9']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
+  assert.equal(view.nodes.find(n => n.id === '32').detail, 'folded');
+  assert.equal(view.nodes.find(n => n.id === '33').detail, 'folded');
+  assert.ok(!view.nodes.some(n => n.id === '64'));
 });
 
 test('NIL insertion cursor remains attached and inspectable', () => {
@@ -173,9 +193,9 @@ test('focus and rooted positions stay steady through insertion and leaf initiali
     const leftSet = structuredClone(linked), initialized = structuredClone(linked);
     leftSet.nodes.find(n => n.id === '128').nil_children = ['left'];
     initialized.nodes.find(n => n.id === '128').nil_children = ['left', 'right'];
-    let previous = null, recent = [], oldPositions = null;
+    let previous = null, oldPositions = null;
     for (const state of [before, parentOnly, linked, leftSet, initialized]) {
-      const view = focusSnapshot(state, {previous, recent});
+      const view = focusSnapshot(state, {previous});
       assert.equal(view.unsafe, false);
       assert.ok(view.folded > 0);
       for (const id of ['64', '128']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
@@ -198,7 +218,7 @@ test('focus and rooted positions stay steady through insertion and leaf initiali
         assert.ok(state.nodes.find(n => n.id === '128').nil_children.includes(n.id.split(':').at(-1)));
       }
       oldPositions = positions;
-      recent = view.active; previous = state;
+      previous = state;
     }
   }
 });
