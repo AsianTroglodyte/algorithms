@@ -1,5 +1,10 @@
 # Tree examples
 
+The [BST lessons](bst.md) cover **tree minimum → insertion → transplant →
+deletion**, in that order. They use `binary_tree.py` and share the RB browser's
+focus, folding, pinning, and camera controls. VS Code has four ordered **BST**
+launch configurations; Emacs's example picker lists the four modules.
+
 The [case-1 insertion lesson](insert_case1.md) contains three examples where
 case 1 executes exactly three times, stopping at an internal black parent,
 the black root, or black NIL. It includes debugger launch instructions, the

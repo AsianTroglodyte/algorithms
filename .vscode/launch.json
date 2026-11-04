@@ -13,6 +13,50 @@
       "rbVisualizer": true
     },
     {
+      "name": "BST 1: Tree minimum",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.bst_minimum",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true
+    },
+    {
+      "name": "BST 2: Insertion",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.bst_insertion",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true
+    },
+    {
+      "name": "BST 3: Transplant",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.bst_transplant",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true
+    },
+    {
+      "name": "BST 4: Deletion",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.bst_deletion",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopOnEntry": true,
+      "justMyCode": true,
+      "rbVisualizer": true
+    },
+    {
       "name": "Case 1 three times: internal black parent",
       "type": "debugpy",
       "request": "launch",

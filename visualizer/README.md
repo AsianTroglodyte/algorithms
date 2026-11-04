@@ -3,6 +3,14 @@
 Browser companion for inspecting the tree while debugging in Emacs or VS Code.
 Run the commands below from the repository root.
 
+Both `red_black_trees.py` and the None-based `binary_tree.py` use this same
+runtime, editor bridge, and browser presentation. The [BST lessons](../examples/bst.md)
+introduce **tree minimum → insertion → transplant → deletion** through four
+ordered VS Code launch configurations and Emacs's existing example picker.
+The browser identifies the tree type from its registered instance: BSTs use
+plain nodes and **Show None links**, while RB trees retain their color and
+shared-NIL controls. No additional dependency or extension change is needed.
+
 The Python runtime and server live directly in `visualizer/`, browser assets in
 `static/`, editor bridges in `emacs/` and `vscode/`, packaging in `scripts/`, and
 checks in `tests/`. Runnable tree examples live in [`../examples/`](../examples/README.md).
@@ -280,6 +288,8 @@ node visualizer/tests/focus.test.mjs
 # Optional; requires Playwright and Chromium:
 python visualizer/tests/focus_browser_smoke.py
 python visualizer/tests/focus_camera_smoke.py
+python visualizer/tests/bst_browser_smoke.py
+.venv/bin/python visualizer/tests/bst_debug_adapter_smoke.py
 ```
 
 The VS Code checks need Node.js 18+ and the Python environment above. They

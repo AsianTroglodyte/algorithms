@@ -90,12 +90,13 @@ let layoutError = '';
 async function render() {
   const generation = ++renderGeneration;
   const snapshot = data;
+  const bst = snapshot.tree_kind === 'bst';
   const focus = document.querySelector('#view-mode').value === 'focus';
   const projection = focusSnapshot(snapshot, {previous: previousSnapshot, pinned, expanded});
   currentActive = projection.active;
   const view = focus ? projection : snapshot;
   const showNil = document.querySelector('#nil').checked;
-  const sharedNil = showNil && document.querySelector('#nil-view').value === 'shared';
+  const sharedNil = !bst && showNil && document.querySelector('#nil-view').value === 'shared';
   let geometry;
   try {
     geometry = await layout(view.nodes ?? [], view.edges ?? [], snapshot.root, {
@@ -111,6 +112,11 @@ async function render() {
   // A newer pause or NIL toggle can overtake this asynchronous layout.
   if (generation !== renderGeneration) return;
   layoutError = '';
+  const title = bst ? 'Binary search tree' : 'Red-black tree';
+  document.querySelector('h1').textContent = title;
+  document.title = `${title} · Debug companion`;
+  document.querySelector('#empty-label').textContent = bst ? 'Show None links' : 'Show NIL leaves';
+  document.querySelector('#nil-view-control').hidden = bst || !showNil;
   document.querySelector('#reset-focus').hidden = !focus;
   const help = document.querySelector('#focus-help');
   help.hidden = !focus;
@@ -187,7 +193,7 @@ async function render() {
         d: path, class: `edge${edge.nil ? ' nil-edge' : ''}${edge.parent ? ' parent-edge' : ''} ${record?.warnings.length ? 'warning' : ''}`,
         ...(edge.pointer ? {'data-source': edge.sourceNode, 'data-target': edge.targetNode, 'data-pointer': edge.pointer} : {}),
       });
-      line.append(el('title', {}, edge.title || record?.warnings.join('; ') || `${record?.side ?? 'NIL'} child`));
+      line.append(el('title', {}, edge.title || record?.warnings.join('; ') || `${record?.side ?? (bst ? 'None' : 'NIL')} child`));
       content.append(line);
     }
     for (const label of edge.labels) content.append(el('text', {x: label.x + label.width / 2, y: label.y + 11, class: `edge-label${edge.parent ? ' parent-label' : ''}`, 'text-anchor': 'middle'}, label.text));
@@ -196,13 +202,13 @@ async function render() {
     if (node.nil) {
       if (!showNil && !node.referenced) continue;
       const width = node.bodyWidth ?? node.width, height = node.bodyHeight ?? node.height;
-      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${node.label ? ' named-nil' : ''}${node.shared ? ' shared-nil' : ''}`, 'data-id': node.id});
-      g.append(el('title', {}, `Shared NIL sentinel${snapshot.nil_address ? ' · ' + snapshot.nil_address : ''}`));
+      const g = el('g', {transform: `translate(${node.x},${node.y})`, class: `nil${bst ? ' empty-none' : ''}${node.label ? ' named-nil' : ''}${node.shared ? ' shared-nil' : ''}`, 'data-id': node.id});
+      g.append(el('title', {}, bst ? 'None · empty child pointer' : `Shared NIL sentinel${snapshot.nil_address ? ' · ' + snapshot.nil_address : ''}`));
       g.append(el('rect', {width, height, rx: node.shared ? 12 : 5}));
       if (node.shared) {
         g.append(el('text', {class: 'nil-name', x: width / 2, y: 27}, 'NIL'), el('text', {class: 'nil-color', x: width / 2, y: 47}, 'BLACK'));
       } else {
-        g.append(el('text', {x: width / 2, y: height / 2 + 4}, 'NIL'));
+        g.append(el('text', {x: width / 2, y: height / 2 + 4}, bst ? 'None' : 'NIL'));
       }
       appendLabel(g, node, node.root);
       content.append(g);
@@ -227,7 +233,7 @@ async function render() {
     const maxKey = compact ? 5 : 9;
     g.append(el('text', {class: 'key', x: node.bodyWidth / 2, y: compact ? node.bodyHeight / 2 : 26}, record.key.length > maxKey ? record.key.slice(0, maxKey - 1) + '…' : record.key));
     if (!compact) g.append(
-      el('text', {class: 'color', x: node.bodyWidth / 2, y: 50}, record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),
+      el('text', {class: 'color', x: node.bodyWidth / 2, y: 50}, bst ? 'BST' : record.color === 'unknown' ? '?' : record.color === 'red' ? 'RED' : 'BLACK'),
       el('text', {class: 'identity', x: node.bodyWidth / 2, y: 69}, `#${record.id}`),
     );
     makeInteractive(g, node); animateNode(g, node);
@@ -244,7 +250,8 @@ async function render() {
   svg.dataset.revision = snapshot.revision ?? '';
   svg.dataset.nilView = sharedNil ? 'shared' : 'leaves';
   svg.dataset.viewMode = focus ? 'focus' : 'full';
-  document.querySelector('#legend').textContent = `Solid edges: child pointers${sharedNil ? ' · Blue: parent → NIL' : ''} · Dashed amber: inconsistency · Node fill: actual color`;
+  svg.dataset.treeKind = bst ? 'bst' : 'red_black';
+  document.querySelector('#legend').textContent = `Solid edges: child pointers${sharedNil ? ' · Blue: parent → NIL' : ''} · Dashed amber: inconsistency${bst ? ' · None: empty child' : ' · Node fill: actual color'}`;
 }
 function fit() {
   if (!bounds.width || !bounds.height) return;
@@ -257,7 +264,7 @@ document.querySelector('#fit').addEventListener('click', fit);
 document.querySelector('#view-mode').addEventListener('change', render);
 document.querySelector('#reset-focus').addEventListener('click', () => { pinned.clear(); expanded.clear(); render(); });
 document.querySelector('#nil').addEventListener('change', () => {
-  document.querySelector('#nil-view-control').hidden = !document.querySelector('#nil').checked;
+  document.querySelector('#nil-view-control').hidden = data.tree_kind === 'bst' || !document.querySelector('#nil').checked;
   render();
 });
 document.querySelector('#nil-view').addEventListener('change', render);
@@ -295,7 +302,7 @@ async function poll() {
     const status = document.querySelector('#status');
     status.textContent = next.status[0].toUpperCase()+next.status.slice(1);
     status.dataset.state = next.status;
-    document.querySelector('#notice').textContent = layoutError || ({paused: 'Stopped frame · actual pointer state', running: 'Running · showing the last paused snapshot', ended: 'Session ended · last snapshot retained', waiting: 'Waiting for a registered tree', error: 'Snapshot unavailable'})[next.status] + (next.message ? ' — '+next.message : '');
+    document.querySelector('#notice').textContent = layoutError || ({paused: 'Stopped frame · actual pointer state', running: 'Running · showing the last paused snapshot', ended: 'Session ended · last snapshot retained', waiting: 'Waiting for a registered tree', error: 'Snapshot unavailable'})[next.status] + (next.message ? ' — '+next.message : '') + (next.tree_kind === 'bst' && next.root_is_empty ? ' · Empty tree: root is None' : '');
     if (next.revision !== revision) {
       // Running/ended state updates retain the last paused focus and its history.
       if (next.status === 'paused' || !data.nodes?.length) {

@@ -237,3 +237,34 @@ test('an unattached insertion node keeps the root available as search context', 
   assert.equal(view.nodes.find(n => n.id === '1').detail, 'full');
   assert.equal(view.nodes.find(n => n.id === '31').detail, 'full');
 });
+
+test('BST minimum follows the cursor and next left child, folding old paths immediately', () => {
+  const state = {...fixture(127, {'1': ['node']}), tree_kind: 'bst'};
+  const first = focusSnapshot(state);
+  assert.deepEqual(new Set(first.active), new Set(['1', '2']));
+  assert.equal(first.nodes.find(n => n.id === '3').detail, 'folded');
+  const next = {...fixture(127, {'4': ['node']}), tree_kind: 'bst'};
+  const view = focusSnapshot(next, {previous: state});
+  assert.deepEqual(new Set(view.active), new Set(['4', '8']));
+  assert.equal(view.nodes.find(n => n.id === '1').detail, 'compact');
+  assert.equal(view.nodes.find(n => n.id === '5').detail, 'folded');
+});
+
+test('BST insertion keeps its parent anchored without expanding an RB grandparent family', () => {
+  const state = {...fixture(127, {'64': ['new_node'], '32': ['parent_of_new_node']}), tree_kind: 'bst'};
+  const view = focusSnapshot(state);
+  assert.equal(view.anchor, '32');
+  assert.deepEqual(new Set(view.active), new Set(['64', '32']));
+  assert.equal(view.nodes.find(n => n.id === '16').detail, 'compact');
+  assert.equal(view.nodes.find(n => n.id === '33').detail, 'folded');
+});
+
+test('BST transplant and deletion expose their target, replacement/successor, and relevant parents', () => {
+  const transplant = {...fixture(127, {'32': ['old_root'], '64': ['replacement']}), tree_kind: 'bst'};
+  const swapping = focusSnapshot(transplant);
+  assert.deepEqual(new Set(swapping.active), new Set(['32', '16', '64']));
+  const deletion = {...fixture(127, {'32': ['node_to_delete'], '66': ['successor']}), tree_kind: 'bst'};
+  const removing = focusSnapshot(deletion);
+  for (const id of ['32', '16', '64', '65', '66', '33']) assert.ok(removing.active.includes(id));
+  assert.equal(removing.nodes.find(n => n.id === '3').detail, 'folded');
+});

@@ -31,12 +31,15 @@ export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), ex
   if (order.length !== nodes.length) unsafe = true;
 
   const named = name => nodes.filter(node => node.names?.includes(name)).map(node => node.id);
+  const bst = snapshot.tree_kind === 'bst';
   const active = new Set(), add = id => { if (byId.has(id)) active.add(id); };
   const parentOf = id => byId.get(id)?.parent ?? parents.get(id);
   const family = (id, insertionParent = null) => {
     add(id);
     const parent = insertionParent ?? parentOf(id), grandparent = parentOf(parent);
-    add(parent); add(grandparent);
+    add(parent);
+    if (bst) return;
+    add(grandparent);
     for (const child of children.get(grandparent) ?? []) add(child.id);
   };
   const rotations = [...named('rotate_down'), ...named('rotate_up')];
@@ -49,7 +52,21 @@ export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), ex
   const insertion = inserting.length && insertionParent && insertionSide ?
     {nodeId: inserting[0], parentId: insertionParent, side: insertionSide} : null;
   let anchor = rotations[0] ?? fixing[0] ?? searching[0] ?? inserting[0];
-  if (rotations.length) {
+  if (bst && named('old_root').length) {
+    for (const id of [...named('old_root'), ...named('replacement')]) { add(id); add(parentOf(id)); }
+    anchor = parentOf(named('old_root')[0]) ?? named('replacement')[0] ?? named('old_root')[0];
+  } else if (bst && named('node_to_delete').length) {
+    for (const id of [...named('node_to_delete'), ...named('successor')]) { add(id); add(parentOf(id)); }
+    for (const id of named('node_to_delete')) for (const child of children.get(id) ?? []) add(child.id);
+    for (const id of named('successor')) for (const child of children.get(id) ?? []) if (child.side === 'right') add(child.id);
+    anchor = parentOf(named('node_to_delete')[0]) ?? snapshot.root ?? named('node_to_delete')[0];
+  } else if (bst && named('node').length) {
+    for (const id of named('node')) {
+      add(id);
+      add(children.get(id)?.find(child => child.side === 'left')?.id);
+    }
+    anchor = named('node')[0];
+  } else if (rotations.length) {
     for (const id of rotations) {
       add(id); add(parentOf(id));
       // Include transferred subtree roots even before rotate_up is assigned.
@@ -75,7 +92,7 @@ export function focusSnapshot(snapshot, {previous = null, pinned = new Set(), ex
     // installed. Anchor the rooted family, rather than chasing that region.
     if (insertion) anchor = insertionParent;
   } else {
-    for (const name of ['delete_node', 'replacement', 'old_root', 'node']) named(name).forEach(id => family(id));
+    for (const name of ['delete_node', 'replacement', 'old_root', 'node', ...(bst ? ['minimum'] : [])]) named(name).forEach(id => family(id));
   }
   const frame = [...active];
   // An insertion cursor at NIL lives on its owning child slot.

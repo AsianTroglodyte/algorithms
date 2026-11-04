@@ -1,7 +1,7 @@
 # Red-black trees
 
-Python red-black tree implementation and a browser companion for stepping
-through its actual pointer state from Emacs or VS Code.
+Python red-black and binary search tree implementations with a shared browser
+companion for stepping through actual pointer state from Emacs or VS Code.
 
 ## Project layout
 
@@ -28,6 +28,11 @@ figures/                    Presentation figures
 See the [visualizer guide](visualizer/README.md) for Emacs and VS Code setup,
 and the [examples guide](examples/README.md) for running or adding examples.
 Open this repository root in your editor.
+
+The [BST lessons](examples/bst.md) cover minimum, insertion, transplant, and
+deletion, in that order, using the same presentation, subtree folding, and
+camera policies. BSTs use None links and plain nodes; RB trees use their
+shared black NIL sentinel and actual node colors.
 
 ## Tree representation
 

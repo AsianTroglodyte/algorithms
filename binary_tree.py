@@ -1,3 +1,5 @@
+"""Pointer-based binary search trees with None for empty child links."""
+
 import math
 
 
@@ -15,8 +17,8 @@ class Node:
 class Tree:
     """Tree that merely contains Root node."""
 
-    def __init__(self, Node):
-        """Initialize the root node."""
+    def __init__(self, Node=None):
+        """Create an empty tree (the legacy optional argument is ignored)."""
         self.root: Node | None = None
 
 
@@ -54,9 +56,9 @@ def tree_search(node: Node, key: int) -> Node:
         return tree_search(node.right, key)
 
 
-def tree_minimum(node: Node) -> Node:
-    """Search a tree to find the minimum value."""
-    while node.left is not None:
+def tree_minimum(node: Node | None) -> Node | None:
+    """Return the leftmost node, or None for an empty subtree."""
+    while node is not None and node.left is not None:
         node = node.left
     return node
 
@@ -97,11 +99,11 @@ def tree_successor(node: Node) -> Node:
         return parent_node
 
 
-def transplant(tree: Tree, old_root: Node, replacement: Node):
+def transplant(tree: Tree, old_root: Node, replacement: Node | None):
     """Transplant some subtree with a some other subtree."""
     if old_root.parent is None:
         tree.root = replacement
-    elif old_root == old_root.parent.left:
+    elif old_root is old_root.parent.left:
         old_root.parent.left = replacement
     else:
         old_root.parent.right = replacement
@@ -120,7 +122,7 @@ def tree_delete(tree: Tree, node_to_delete: Node):
         transplant(tree, node_to_delete, node_to_delete.left)
     else:
         successor = tree_minimum(node_to_delete.right)
-        if successor != node_to_delete.right:  # is succesor farther down tree?
+        if successor is not node_to_delete.right:  # is succesor farther down tree?
             # replace successor by it's right child
             transplant(tree, successor, successor.right)
             successor.right = node_to_delete.right
@@ -128,6 +130,12 @@ def tree_delete(tree: Tree, node_to_delete: Node):
         transplant(tree, node_to_delete, successor)  # replace node by its successor
         successor.left = node_to_delete.left  # node's left child to successor
         successor.left.parent = successor
+
+    # Like the RB tree, retain a deleted node as a detached object while a
+    # debugger/local still refers to it, without stale links into the tree.
+    node_to_delete.left = None
+    node_to_delete.right = None
+    node_to_delete.parent = None
 
 
 def tree_insert(tree: Tree, new_node: Node):
@@ -167,94 +175,19 @@ def is_valid_bst(node, lower_bound=-math.inf, upper_bound=math.inf):
     )
 
 
-node1 = Node(1)
-node2 = Node(2)
-node3 = Node(3)
-
-node4 = Node(4)
-node5 = Node(5)
-
-# node 4 is the root node
-tree = Tree(node4)
-tree_insert(tree, node2)
-tree_insert(tree, node1)
-tree_insert(tree, node3)
-tree_insert(tree, node5)
+# Match the RB module's operation names without breaking existing BST callers.
+insert = tree_insert
+delete = tree_delete
 
 
-is_valid_bst(node4)
-
-
-node100 = Node(100)
-tree_insert(tree, node100)
-node69 = Node(69)
-tree_insert(tree, node69)
-node124 = Node(124)
-tree_insert(tree, node124)
-# print(is_valid_bst(node4))
-
-
-# def get_tree_node_list(node: Node, list: [Node]):
-#     """Get list of all tree nodes."""
-#     all_nodes = []
-#     if (node is not None):
-#         left_list = get_tree_node_list(node.left)
-#         if left_list is not None:
-#             all_nodes
-#         right_list = get_tree_node_list(node.right)
-
-# delete testing
-all_nodes = [node1, node2, node3, node4, node5, node100, node69, node124]
-
-for node in all_nodes:
-    # inorder_tree_walk(tree.root)
-    print(f"Deleting {node.key}")
-    inorder_tree_walk(tree.root)
-    tree_delete(tree, node)
-    print(is_valid_bst(node4))
-    print("\n")
-
-
-node10 = Node(10)
-node17 = Node(17)
-node4 = Node(4)
-node21 = Node(21)
-
-tree_minimum(node10)
-tree_minimum(node17)
-tree_minimum(node4)
-tree_minimum(node21)
-
-# found_minimum = tree_minimum_recursive(node4)
-# if found_minimum is not None:
-#     print(f"min_node_ref: {found_minimum}\n min_node_key: {found_minimum.key}")
-
-# found_maximum = tree_maximum_recursive(node4)
-# if found_maximum is not None:
-#     print(f"max_node_ref: {found_maximum}\n max_node_key: {found_maximum.key}")
-
-# print("inorder_tree_walk: ")
-# inorder_tree_walk(node4)
-# print("preorder_tree_walk: ")
-# preorder_tree_walk(node4)
-# print("postorder_tree_walk: ")
-# postorder_tree_walk(node4)
-# found_object = tree_search(node4, 2)
-# if found_object is not None:
-#     print(f"obj_ref: {found_object}\n obj_key: {found_object.key}")
-
-# found_minimum = tree_minimum(node4)
-# if found_minimum is not None:
-#     print(f"min_node_ref: {found_minimum}\n min_node_key: {found_minimum.key}")
-
-# found_maximum = tree_maximum(node4)
-# if found_maximum is not None:
-#     print(f"max_node_ref: {found_maximum}\n max_node_key: {found_maximum.key}")
-# Is the following valid BST?
-#           10
-#        /     \
-#       4      17
-#      / \     / \
-#     1   5   16  21
-#          \
-#           6
+if __name__ == "__main__":
+    tree = Tree()
+    nodes = [Node(key) for key in (4, 2, 1, 3, 5, 100, 69, 124)]
+    for node in nodes:
+        tree_insert(tree, node)
+    print("Minimum:", tree_minimum(tree.root).key)
+    for node in nodes:
+        print(f"Deleting {node.key}")
+        tree_delete(tree, node)
+        inorder_tree_walk(tree.root)
+        print("Valid BST:", is_valid_bst(tree.root))

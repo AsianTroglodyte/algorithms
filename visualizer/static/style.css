@@ -8,7 +8,7 @@ h1 { font-size: 24px; font-weight: 600; margin: 2px 0 0; letter-spacing: -.03em;
 #status[data-state=paused] { color: #136246; background: #e9f6ee; border-color: #bbdeca; }
 #status[data-state=ended], #status[data-state=error] { color: #8b4e10; background: #fff1d9; border-color: #e9c88d; }
 nav { padding: 10px 24px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid #dde2e9; background: #fff; flex-wrap: wrap; }
-nav span { margin-left: auto; font-size: 11px; color: #69768b; }
+nav > span { margin-left: auto; font-size: 11px; color: #69768b; }
 label { cursor: pointer; display: flex; align-items: center; gap: 5px; }
 .nil-controls { display: grid; gap: 6px; }
 #nil-view-control { margin-left: 22px; font-size: 12px; color: #65748a; }
@@ -38,6 +38,7 @@ main { flex: 1; min-height: 160px; position: relative; overflow: hidden; }
 .edge-label { fill: #62728a; font: 11px system-ui; paint-order: stroke; stroke: #f5f6f8; stroke-width: 4px; }
 .node .node-body { fill: #202b3c; stroke: #fff; stroke-width: 2; }
 .node.red .node-body { fill: #bf3547; }
+.node.plain .node-body { fill: #355570; }
 .node.unknown .node-body { fill: #778294; }
 .node.warning .node-body { stroke: #dc951f; stroke-width: 3; stroke-dasharray: 5 3; }
 .key { fill: white; font: 600 16px system-ui; text-anchor: middle; dominant-baseline: central; }
@@ -51,9 +52,11 @@ main { flex: 1; min-height: 160px; position: relative; overflow: hidden; }
 .group-label { fill: #8994a6; font: 600 11px system-ui; letter-spacing: .1em; }
 .nil > rect { fill: #202b3c; }
 .nil > text { fill: white; font: 9px system-ui; text-anchor: middle; }
+.nil.empty-none > rect { fill: #e9eef4; stroke: #a8b6c7; }
+.nil.empty-none > text { fill: #43566f; }
 .shared-nil > .nil-name { font-size: 16px; font-weight: 600; }
 .shared-nil > .nil-color { letter-spacing: .08em; }
 #warnings { max-height: 22vh; overflow: auto; background: #fff6e7; border-top: 1px solid #efd5a5; padding: 10px 24px; font-size: 12px; color: #7b4b13; }
 #warnings p { margin: 3px 0; }
 footer { padding: 10px 18px; background: #fff; border-top: 1px solid #dde2e9; display: flex; justify-content: space-between; gap: 12px; font-size: 10px; color: #788396; flex-wrap: wrap; }
-@media (max-width: 600px) { header { padding: 12px 16px; } nav { padding: 8px 16px; gap: 12px; } nav span { width: 100%; margin: 0; } }
+@media (max-width: 600px) { header { padding: 12px 16px; } nav { padding: 8px 16px; gap: 12px; } nav > span { width: 100%; margin: 0; } }

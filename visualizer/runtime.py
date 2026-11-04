@@ -61,7 +61,7 @@ def track_existing(node):
 
 def _insertion_nil_slot(frame_locals, nil):
     """Locate insert's empty child slot using its stopped-frame search context."""
-    if frame_locals.get("current_node") is not nil:
+    if "current_node" not in frame_locals or frame_locals["current_node"] is not nil:
         return None
     parent = frame_locals.get("parent_of_new_node")
     new_node = frame_locals.get("new_node")
@@ -89,7 +89,9 @@ def snapshot(frame_locals):
     tree = _tree() if _tree is not None else None
     if tree is None:
         return {"status": "waiting", "message": "Waiting for a registered tree", "nodes": [], "edges": [], "warnings": [], "nil_names": [], "root_is_nil": False, "nil_address": None}
-    nil = tree.nil
+    has_sentinel = hasattr(tree, "nil")
+    nil = tree.nil if has_sentinel else None
+    tree_kind = "red_black" if has_sentinel else "bst"
     root = getattr(tree, "root", None)
 
     def is_node(value):
@@ -116,12 +118,12 @@ def snapshot(frame_locals):
                 pending.append(other)
     names, nil_names = {}, []
     for name, value in frame_locals.items():
-        if value is nil:
+        if has_sentinel and value is nil:
             nil_names.append(str(name))
         elif is_node(value) and value in _ids:
             names.setdefault(_ids[value], []).append(str(name))
     nil_slot = _insertion_nil_slot(frame_locals, nil)
-    if nil_slot is not None:
+    if nil_slot is not None and has_sentinel:
         nil_names.remove("current_node")
     nodes, edges, warnings = [], [], []
     incoming = {}
@@ -132,21 +134,22 @@ def snapshot(frame_locals):
         # Demo keys are integers. Avoid arbitrary user __repr__ side effects.
         record["key"] = str(key) if type(key) in (int, float, str, bool) else f"<{type(key).__name__}>"
         color = getattr(node, "color", None)
-        record["color"] = getattr(color, "value", None)
-        record["nil_children"] = [side for side in ("left", "right") if getattr(node, side, None) is nil]
+        record["color"] = getattr(color, "value", None) if has_sentinel else "plain"
+        # These are boundary slots in the shared wire format: RB NIL or BST None.
+        record["nil_children"] = [side for side in ("left", "right") if hasattr(node, side) and getattr(node, side) is nil]
         record["nil_labels"] = {nil_slot[1]: ["current_node"]} if nil_slot and nil_slot[0] == ident else {}
-        if record["color"] not in ("red", "black"):
+        if has_sentinel and record["color"] not in ("red", "black"):
             record["color"] = "unknown"
             issues.append("Unknown or uninitialized color")
         for field in ("left", "right", "parent"):
             target = getattr(node, field, None)
             record[field] = _ids.get(target) if is_node(target) else None
             if target is not None and target is not nil and not is_node(target):
-                issues.append(f"{field} is not a Node or NIL")
+                issues.append(f"{field} is not a Node or {'NIL' if has_sentinel else 'None'}")
             if not hasattr(node, field):
                 issues.append(f"{field} is not initialized")
         parent = getattr(node, "parent", None)
-        record["parent_is_nil"] = parent is nil
+        record["parent_is_nil"] = has_sentinel and parent is nil
         if is_node(parent) and node is not getattr(parent, "left", None) and node is not getattr(parent, "right", None):
             issues.append(f"Parent #{record['parent']} does not list this node as a child")
         for side in ("left", "right"):
@@ -201,7 +204,9 @@ def snapshot(frame_locals):
     if root is not nil and root_id is None:
         warnings.append("Root is not a tracked Node")
     return {"status": "paused", "root": root_id, "nodes": nodes, "edges": edges, "warnings": warnings,
-            "nil_names": sorted(nil_names), "root_is_nil": root is nil, "nil_address": hex(id(nil))}
+            "tree_kind": tree_kind, "root_is_empty": root is nil,
+            "nil_names": sorted(nil_names), "root_is_nil": has_sentinel and root is nil,
+            "nil_address": hex(id(nil)) if has_sentinel else None}
 
 
 def snapshot_wire(frame_locals):

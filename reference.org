@@ -1,0 +1,28 @@
+* RB-tree
+
+** RB-tree properties
+
+it has other properties as well:
+ 1. A node is either red or black.
+ 2. the root is black
+ 3. leaves (NIL) are black.
+ 4. If a node is red, then its children are black.
+
+    NOTE: invariant 5 is the main balancing invariant
+ 5. All paths from any node to its NIL descendants contain the same number of
+    black nodes. reiterate. This invariant hold for ALL nodes. in RB tree
+** loop invariants
+
+
+1. fix_node is red
+2. if fix_node.parent is root, then fix_node.parent
+   is black
+   (the most central)
+3. if the tree violates any of the red-black properties,
+   then if violates and the violation is of either
+   property 2 or property 4, but not both.
+
+   1. If the tree violates property 2 either fix_node or fix_node parent
+
+   2. If the tree violates property 4, it is because both fix_node and
+      fix_node.parent are red.
