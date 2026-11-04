@@ -110,18 +110,75 @@ test('NIL insertion cursor remains attached and inspectable', () => {
   assert.deepEqual(view.nodes.find(n => n.id === '64').nil_labels, {left: ['current_node']});
 });
 
-test('cycles, shared children, and warnings retain the full actual graph', () => {
+test('cycles, shared children, and unlocated warnings retain the full actual graph', () => {
   const cycle = fixture();
   cycle.edges.push({source: '127', target: '1', side: 'left', warnings: []});
   const shared = fixture();
   shared.edges.push({source: '127', target: '64', side: 'left', warnings: []});
   const warned = fixture();
-  warned.nodes[90].warnings.push('Parent mismatch');
+  warned.warnings.push('Root is not a tracked Node');
   for (const state of [cycle, shared, warned]) {
     const view = focusSnapshot(state);
     assert.equal(view.unsafe, true);
     assert.deepEqual(view.nodes, state.nodes);
     assert.deepEqual(view.edges, state.edges);
+  }
+});
+
+test('local parent warnings reveal affected nodes without unfolding unrelated branches', () => {
+  const state = fixture();
+  const node = state.nodes.find(n => n.id === '127');
+  node.parent = '90';
+  node.warnings = ['Parent #90 does not list this node as a child'];
+  state.warnings = [`#127: ${node.warnings[0]}`];
+  const view = focusSnapshot(state);
+  assert.equal(view.unsafe, false);
+  assert.ok(view.folded > 0);
+  for (const id of ['127', '90']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
+  assert.deepEqual(view.nodes.find(n => n.id === '127').warnings, node.warnings);
+});
+
+test('warning edges and both claimed parents remain visible with their actual pointers', () => {
+  const state = fixture();
+  state.nodes.find(n => n.id === '127').parent = '90';
+  const edge = state.edges.find(e => e.target === '127');
+  edge.warnings = ["Child's parent does not point back"];
+  state.warnings = [`#${edge.source} ${edge.side} → #${edge.target}: ${edge.warnings[0]}`];
+  const view = focusSnapshot(state);
+  assert.equal(view.unsafe, false);
+  assert.ok(view.folded > 0);
+  for (const id of ['63', '127', '90']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
+  assert.deepEqual(view.edges.find(e => e.target === '127'), edge);
+});
+
+test('focus survives every insertion linking phase on both sides', () => {
+  for (const side of ['left', 'right']) {
+    const before = fixture(127, {'64': ['parent_of_new_node']});
+    before.nodes.find(n => n.id === '64').nil_labels = {[side]: ['current_node']};
+    const incoming = {id: '128', key: '128', address: '0x128', names: ['new_node'], color: 'red',
+      parent: null, left: null, right: null, nil_children: [], detached: true, warnings: []};
+    before.nodes.push(incoming);
+    const parentOnly = structuredClone(before);
+    const pending = parentOnly.nodes.find(n => n.id === '128');
+    pending.parent = '64';
+    pending.warnings = ['Parent #64 does not list this node as a child'];
+    parentOnly.warnings = [`#128: ${pending.warnings[0]}`];
+    const linked = structuredClone(parentOnly);
+    linked.nodes.find(n => n.id === '128').warnings = [];
+    linked.nodes.find(n => n.id === '128').detached = false;
+    linked.nodes.find(n => n.id === '64').nil_children = ['left', 'right'].filter(s => s !== side);
+    linked.nodes.find(n => n.id === '64').nil_labels = {};
+    linked.edges.push({source: '64', target: '128', side, warnings: []});
+    linked.warnings = [];
+    let previous = null, recent = [];
+    for (const state of [before, parentOnly, linked]) {
+      const view = focusSnapshot(state, {previous, recent});
+      assert.equal(view.unsafe, false);
+      assert.ok(view.folded > 0);
+      for (const id of ['64', '128']) assert.equal(view.nodes.find(n => n.id === id).detail, 'full');
+      assert.equal(view.nodes.filter(n => n.detail !== 'folded').length + view.folded, 128);
+      recent = view.active; previous = state;
+    }
   }
 });
 

@@ -9,13 +9,16 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   const nodes = snapshot.nodes ?? [], edges = snapshot.edges ?? [];
   const byId = new Map(nodes.map(node => [node.id, node]));
   const children = new Map(nodes.map(node => [node.id, []])), parents = new Map();
-  let unsafe = Boolean(snapshot.warnings?.length || nodes.some(node => node.warnings?.length));
+  // Local pointer warnings are normal between assignments. Keep their nodes
+  // visible below; only ambiguous child topology needs the whole graph.
+  const locatedWarnings = nodes.reduce((count, node) => count + (node.warnings?.length ?? 0), 0)
+    + edges.reduce((count, edge) => count + (edge.warnings?.length ?? 0), 0);
+  let unsafe = (snapshot.warnings?.length ?? 0) > locatedWarnings;
   for (const edge of edges) {
     if (!byId.has(edge.source) || !byId.has(edge.target)) { unsafe = true; continue; }
     if (parents.has(edge.target) || children.get(edge.source).some(child => child.side === edge.side)) unsafe = true;
     parents.set(edge.target, edge.source);
     children.get(edge.source).push({id: edge.target, side: edge.side});
-    if (edge.warnings?.length) unsafe = true;
   }
   // A finite traversal also catches malformed fixtures without warning metadata.
   const order = nodes.filter(node => !parents.has(node.id)).map(node => node.id);
@@ -62,6 +65,11 @@ export function focusSnapshot(snapshot, {previous = null, recent = [], pinned = 
   }
   // An insertion cursor at NIL lives on its owning child slot.
   for (const node of nodes) if (Object.values(node.nil_labels ?? {}).some(names => names.length)) add(node.id);
+  // Never fold away a warning or the endpoints needed to understand it.
+  for (const node of nodes) if (node.warnings?.length) { add(node.id); add(node.parent); }
+  for (const edge of edges) if (edge.warnings?.length) {
+    add(edge.source); add(edge.target); add(byId.get(edge.target)?.parent);
+  }
   if (previous) {
     const before = new Map((previous.nodes ?? []).map(node => [node.id, node]));
     const links = state => {

@@ -126,14 +126,54 @@ def main():
             publish(changed)
             assert page.locator('.node[data-id="127"]:not(.compact)').count() == 1
 
-            # Invalid intermediate pointer states reveal every actual node.
+            # A local warning retains focus and exposes the affected nodes.
             malformed = copy.deepcopy(changed)
             malformed['nodes'][90]['warnings'] = ['Parent mismatch']
             malformed['warnings'] = ['#91: Parent mismatch']
             publish(malformed)
+            assert page.locator('.folded-subtree').count() > 0
+            assert 'full graph' not in page.locator('#focus-help').text_content()
+            assert page.locator('.node[data-id="91"]:not(.compact)').count() == 1
+            assert page.locator('.node.warning').count() >= 1
+            # Ambiguous child topology still reveals the complete graph.
+            shared = copy.deepcopy(changed)
+            shared['edges'].append(dict(source='127', target='64', side='left', warnings=['Shared child']))
+            publish(shared)
             assert page.locator('.node').count() == 127
             assert 'full graph' in page.locator('#focus-help').text_content()
-            assert page.locator('.node.warning').count() >= 1
+            publish(moved)
+
+            # Insertion assigns parent before the parent installs its child.
+            # This normal temporary warning must not disable compression.
+            for side in ['left', 'right']:
+                before_link = fixture(active=None)
+                parent = before_link['nodes'][63]
+                parent['names'] = ['parent_of_new_node']
+                parent['nil_labels'] = {side: ['current_node']}
+                before_link['nodes'].append(dict(id='128', key='128', address='0x128', names=['new_node'],
+                                                color='red', parent=None, nil_children=[], detached=True, warnings=[]))
+                parent_only = copy.deepcopy(before_link)
+                pending = parent_only['nodes'][-1]
+                pending['parent'] = '64'
+                pending['warnings'] = ['Parent #64 does not list this node as a child']
+                parent_only['warnings'] = ['#128: ' + pending['warnings'][0]]
+                linked = copy.deepcopy(parent_only)
+                linked['nodes'][-1]['warnings'] = []
+                linked['nodes'][-1]['detached'] = False
+                linked['nodes'][63]['nil_children'] = [s for s in ['left', 'right'] if s != side]
+                linked['nodes'][63]['nil_labels'] = {}
+                linked['edges'].append(dict(source='64', target='128', side=side, warnings=[]))
+                linked['warnings'] = []
+                for phase in [before_link, parent_only, linked]:
+                    publish(phase)
+                    assert page.locator('#canvas').get_attribute('data-view-mode') == 'focus'
+                    assert page.locator('.folded-subtree').count() > 0
+                    assert 'full graph' not in page.locator('#focus-help').text_content()
+                    for key in ['64', '128']:
+                        assert page.locator(f'.node[data-id="{key}"]:not(.compact)').count() == 1
+                publish(parent_only)
+                assert page.locator('.node[data-id="128"].warning').count() == 1
+                assert 'does not list this node' in page.locator('#warnings').text_content()
             publish(moved)
 
             # Dragging a node pans without pinning it.
@@ -168,7 +208,7 @@ def main():
             assert page.locator('.folded-subtree').count() > 0
             assert not errors, errors
             browser.close()
-        print('PASS: focus compression, pins, expansion/reset, keyboard, anchoring, NIL stability, stepping, warnings, drag, full view')
+        print('PASS: focus compression, insertion linking on both sides, pins, expansion/reset, keyboard, anchoring, NIL stability, stepping, warnings, drag, full view')
     finally:
         server.shutdown()
         server.server_close()

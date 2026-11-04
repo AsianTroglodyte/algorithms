@@ -161,9 +161,11 @@ configuration are made by this project.
   refresh starts in Full tree.
 - Focus mode keeps the active node near its screen position and briefly animates
   layout changes (unless reduced motion is enabled). Compression changes other
-  positions while preserving pointer sides. Pointer inconsistencies temporarily
-  display the full graph, so intermediate rotation states and warnings stay
-  inspectable. In Shared sentinel view, folded subtrees summarize their internal
+  positions while preserving pointer sides. Temporary parent/child mismatches
+  keep the affected nodes and warning edges visible without expanding the whole
+  tree, including between insertion's parent and child assignments. Cycles,
+  shared children, or warnings without a node/edge location display the full
+  graph. In Shared sentinel view, folded subtrees summarize their internal
   NIL links too; expand them or choose Full tree to see every NIL pointer.
 - Drag the background to pan; scroll to zoom around the pointer.
 - **Fit to view** explicitly fits all known nodes. Camera position and scale
